@@ -1,0 +1,28 @@
+modules:
+  node:
+    method: http
+    http:
+       port: 9100
+
+  mtail:
+    method: http
+    http:
+       port: 3903
+
+  cadvisor:
+    method: http
+    http:
+       port: 4194
+
+  somescript: # executed on every request
+    method: exec
+    timeout: 1s
+    exec:
+      command: /tmp/myscript.sh
+      args:
+        - "myarg1"
+        - "myarg2"
+      env:
+        THING: "1"
+        THING2: "2"
+

@@ -1,4 +1,4 @@
-// Copyright 2016 Tristan Colgate-McFarlane
+// Copyright 2016 Qubit Ltd.
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
 // You may obtain a copy of the License at
@@ -14,150 +14,146 @@
 package main
 
 import (
+	"context"
 	"flag"
+	"fmt"
 	"net/http"
+	"os"
 	"time"
 
-	"github.com/doneland/yquotes"
 	"github.com/golang/glog"
 	"github.com/prometheus/client_golang/prometheus"
 	"github.com/prometheus/client_golang/prometheus/promhttp"
 )
 
 var (
-	addr = flag.String("listen-address", ":9666", "The address to listen on for HTTP requests.")
+	addr  = flag.String("web.listen-address", ":9100", "The address to listen on for HTTP requests.")
+	tPath = flag.String("web.telemetry-path", "/metrics", "The address to listen on for HTTP requests.")
+	mPath = flag.String("web.proxy-path", "/proxy", "The address to listen on for HTTP requests.")
 
-	// These are metrics for the collector itself
-	queryDuration = prometheus.NewSummary(
+	proxyDuration = prometheus.NewSummaryVec(
 		prometheus.SummaryOpts{
-			Name: "yquotes_query_duration_seconds",
+			Name: "expexp_proxy_duration_seconds",
 			Help: "Duration of queries to the yahoo API",
 		},
+		[]string{"module"},
 	)
-	queryCount = prometheus.NewCounterVec(
+	proxyErrorCount = prometheus.NewCounterVec(
 		prometheus.CounterOpts{
-			Name: "yquotes_queries_total",
-			Help: "Count of completed queries",
+			Name: "expexp_proxy_errors_total",
+			Help: "Counts of errors",
 		},
-		[]string{"symbol"},
+		[]string{"module"},
 	)
-	errorCount = prometheus.NewCounterVec(
+	proxyTimeoutCount = prometheus.NewCounterVec(
 		prometheus.CounterOpts{
-			Name: "yquotes_failed_queries_total",
-			Help: "Count of failed queries",
+			Name: "expexp_proxy_timeout_errors_total",
+			Help: "Counts of the number of times a proxy timeout occurred",
 		},
-		[]string{"symbol"},
+		[]string{"module"},
+	)
+
+	proxyMalformedCount = prometheus.NewCounterVec(
+		prometheus.CounterOpts{
+			Name: "expexp_malformed_content_errors_total",
+			Help: "Counts of unparsable scrape content errors",
+		},
+		[]string{"module"},
 	)
 )
 
 func init() {
 	// register the collector metrics in the default
 	// registry.
-	prometheus.MustRegister(queryDuration)
-	prometheus.MustRegister(queryCount)
-	prometheus.MustRegister(errorCount)
+	prometheus.MustRegister(proxyDuration)
+	prometheus.MustRegister(proxyTimeoutCount)
+	prometheus.MustRegister(proxyErrorCount)
+	prometheus.MustRegister(proxyMalformedCount)
+	prometheus.MustRegister(cmdStartsCount)
+	prometheus.MustRegister(cmdFailsCount)
 }
 
 func main() {
 	flag.Parse()
-	http.HandleFunc("/price", getPrice)
+
+	r, err := os.Open("expexp.yaml")
+	if err != nil {
+		glog.Fatalf("%+v", err)
+	}
+
+	cfg, err := readConfig(r)
+	if err != nil {
+		glog.Fatalf("%+v", err)
+	}
+
+	http.HandleFunc("/proxy", cfg.doProxy)
 	http.Handle("/metrics", promhttp.Handler())
-	http.ListenAndServe(*addr, nil)
-}
 
-type collector []string
-
-func (c collector) Describe(ch chan<- *prometheus.Desc) {
-	// Must send one description, or the registry panics
-	ch <- prometheus.NewDesc("dummy", "dummy", nil, nil)
-}
-
-func (c collector) Collect(ch chan<- prometheus.Metric) {
-	for _, s := range c {
-		if s == "" {
-			// should never happen
-			continue
-		}
-
-		queryCount.WithLabelValues(s).Inc()
-		if glog.V(2) {
-			glog.Infof("looking up %s\n", s)
-		}
-
-		start := time.Now()
-		stock, err := yquotes.NewStock(s, false)
-		queryDuration.Observe(float64(time.Since(start).Seconds()))
-
-		if err != nil {
-			glog.Infof("error: %v\n", err)
-			errorCount.WithLabelValues(s).Inc()
-			continue
-		}
-
-		symbol := stock.Symbol
-		name := stock.Name
-		price := stock.Price
-
-		ls := []string{"symbol", "name"}
-		lvs := []string{symbol, name}
-
-		ch <- prometheus.MustNewConstMetric(
-			prometheus.NewDesc("yquotes_last_price_dollars", "Last price paid.", ls, nil),
-			prometheus.GaugeValue,
-			price.Last,
-			lvs...,
-		)
-
-		ch <- prometheus.MustNewConstMetric(
-			prometheus.NewDesc("yquotes_bid_price_dollars", "Bid price.", ls, nil),
-			prometheus.GaugeValue,
-			price.Bid,
-			lvs...,
-		)
-
-		ch <- prometheus.MustNewConstMetric(
-			prometheus.NewDesc("yquotes_ask_price_dollars", "Asking price.", ls, nil),
-			prometheus.GaugeValue,
-			price.Ask,
-			lvs...,
-		)
-
-		ch <- prometheus.MustNewConstMetric(
-			prometheus.NewDesc("yquotes_opening_price_dollars", "Opening price.", ls, nil),
-			prometheus.GaugeValue,
-			price.Open,
-			lvs...,
-		)
-
-		ch <- prometheus.MustNewConstMetric(
-			prometheus.NewDesc("yquotes_previous_close_price_dollars", "Previous close price.", ls, nil),
-			prometheus.GaugeValue,
-			price.PreviousClose,
-			lvs...,
-		)
-
-		ch <- prometheus.MustNewConstMetric(
-			prometheus.NewDesc("yquotes_publish_timestamp", "The time this data was published.", ls, nil),
-			prometheus.GaugeValue,
-			float64(price.Date.UnixNano())/float64(time.Second),
-			lvs...,
-		)
+	if err := http.ListenAndServe(*addr, nil); err != nil {
+		glog.Fatalf("%+v", err)
 	}
 }
 
-func getPrice(w http.ResponseWriter, r *http.Request) {
-	syms, ok := r.URL.Query()["sym"]
+func (cfg *config) doProxy(w http.ResponseWriter, r *http.Request) {
+	mod, ok := r.URL.Query()["module"]
 	if !ok {
-		glog.Infof("no syms given")
+		glog.Infof("no module given")
 		return
 	}
 
-	registry := prometheus.NewRegistry()
+	if len(mod) != 1 {
+		glog.Infof("you must pass exactly one module parameter")
+		return
+	}
 
-	collector := collector(syms)
-	registry.MustRegister(collector)
+	if glog.V(3) {
+		glog.Infof("running module %v\n", mod)
+	}
 
-	// Delegate http serving to Promethues client library, which will call collector.Collect.
-	h := promhttp.HandlerFor(registry, promhttp.HandlerOpts{})
+	var h http.Handler
+	if m, ok := cfg.Modules[mod[0]]; !ok {
+		proxyErrorCount.WithLabelValues("unknown").Inc()
+		glog.Infof("unknown module requested  %v\n", mod)
+		http.Error(w, fmt.Sprintf("unknown module %v\n", mod), http.StatusNotFound)
+		return
+	} else {
+		m.name = mod[0]
+		h = m
+	}
+
 	h.ServeHTTP(w, r)
+}
+
+func (m moduleConfig) ServeHTTP(w http.ResponseWriter, r *http.Request) {
+	st := time.Now()
+	defer func() {
+		proxyDuration.WithLabelValues(m.name).Observe(float64(time.Since(st)) / float64(time.Second))
+	}()
+
+	nr := r
+	cancel := func() {}
+	if m.Timeout != 0 {
+		if glog.V(3) {
+			glog.Infof("setting module %v timeout to %v", m.name, m.Timeout)
+		}
+
+		var ctx context.Context
+		ctx, cancel = context.WithTimeout(r.Context(), m.Timeout)
+		nr = r.WithContext(ctx)
+	}
+	defer cancel()
+
+	switch m.Method {
+	case "exec":
+		m.Exec.mcfg = &m
+		m.Exec.ServeHTTP(w, nr)
+	case "http":
+		m.HTTP.mcfg = &m
+		m.HTTP.ServeHTTP(w, nr)
+	default:
+		glog.Infof("unknown module method  %v\n", m.Method)
+		proxyErrorCount.WithLabelValues(m.name).Inc()
+		http.Error(w, fmt.Sprintf("unknown module method %v\n", m.Method), http.StatusNotFound)
+		return
+	}
 }
