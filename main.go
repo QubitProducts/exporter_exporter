@@ -27,7 +27,7 @@ import (
 )
 
 var (
-	addr  = flag.String("web.listen-address", ":9100", "The address to listen on for HTTP requests.")
+	addr  = flag.String("web.listen-address", ":9999", "The address to listen on for HTTP requests.")
 	tPath = flag.String("web.telemetry-path", "/metrics", "The address to listen on for HTTP requests.")
 	mPath = flag.String("web.proxy-path", "/proxy", "The address to listen on for HTTP requests.")
 
