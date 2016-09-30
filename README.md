@@ -70,15 +70,29 @@ scrape_configs:
   - job_name: 'expexp_metrics'
     scrape_interval: 1s
     static_configs:
-      - targets: ['localhost:9999']
-  - job_name: 'expexp'
+      - targets: ['host:9999']
+  - job_name: 'cadvisor'
     scrape_interval: 5s
     metrics_path: /proxy
     params:
       module:
-        - node
+        - cadvisor
     static_configs:
-      - targets: ['localhost:9999']
-    relabel_configs:
-    ...
+      - targets: ['host:9999']
+  - job_name: 'mtail'
+    scrape_interval: 5s
+    metrics_path: /proxy
+    params:
+      module:
+        - mtail
+    static_configs:
+      - targets: ['host:9999']
+  - job_name: 'somescript'
+    scrape_interval: 5s
+    metrics_path: /proxy
+    params:
+      module:
+        - somescript
+    static_configs:
+      - targets: ['host:9999']
 ```
