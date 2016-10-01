@@ -15,11 +15,17 @@ package main
 
 import (
 	"context"
+	"crypto/tls"
+	"crypto/x509"
 	"flag"
 	"fmt"
+	"io/ioutil"
+	"log"
 	"net/http"
 	"os"
 	"time"
+
+	"golang.org/x/sync/errgroup"
 
 	"github.com/golang/glog"
 	"github.com/prometheus/client_golang/prometheus"
@@ -27,7 +33,17 @@ import (
 )
 
 var (
-	addr  = flag.String("web.listen-address", ":9999", "The address to listen on for HTTP requests.")
+	cfgFile = flag.String("config.file", "expexp.yaml", "The path to the configuration file.")
+
+	addr = flag.String("web.listen-address", ":9999", "The address to listen on for HTTP requests.")
+
+	certPath = flag.String("web.tls.cert", "cert.pem", "Path to cert")
+	keyPath  = flag.String("web.tls.key", "key.pem", "Path to key")
+	caPath   = flag.String("web.tls.ca", "ca.pem", "Path to CA to auth clients against")
+	noverify = flag.Bool("web.tls.no-verify", false, "Disable client verification")
+	regexStr = flag.String("web.tls.client-regex", ".*", "Regular expression to match against CNs (start and end anchors will be added)")
+	tlsAddr  = flag.String("web.tls.listen-address", "", "The address to listen on for HTTPS requests.")
+
 	tPath = flag.String("web.telemetry-path", "/metrics", "The address to listen on for HTTP requests.")
 	mPath = flag.String("web.proxy-path", "/proxy", "The address to listen on for HTTP requests.")
 
@@ -76,7 +92,7 @@ func init() {
 func main() {
 	flag.Parse()
 
-	r, err := os.Open("expexp.yaml")
+	r, err := os.Open(*cfgFile)
 	if err != nil {
 		glog.Fatalf("%+v", err)
 	}
@@ -89,9 +105,52 @@ func main() {
 	http.HandleFunc("/proxy", cfg.doProxy)
 	http.Handle("/metrics", promhttp.Handler())
 
-	if err := http.ListenAndServe(*addr, nil); err != nil {
-		glog.Fatalf("%+v", err)
+	eg, ctx := errgroup.WithContext(context.Background())
+
+	if *addr != "" {
+		eg.Go(func() error {
+			return http.ListenAndServe(*addr, nil)
+		})
 	}
+
+	if *tlsAddr != "" {
+		eg.Go(func() error {
+			cert, err := tls.LoadX509KeyPair(*certPath, *keyPath)
+			if err != nil {
+				glog.Fatalf("Could not parse key/cert, " + err.Error())
+			}
+
+			cabs, err := ioutil.ReadFile(*caPath)
+			if err != nil {
+				glog.Fatalf("Could not open ca file,, " + err.Error())
+			}
+			pool := x509.NewCertPool()
+			ok := pool.AppendCertsFromPEM(cabs)
+			if !ok {
+				glog.Fatalf("Failed loading ca certs")
+			}
+
+			tlsConfig := tls.Config{
+				Certificates: []tls.Certificate{cert},
+				RootCAs:      pool,
+			}
+			tlsConfig.BuildNameToCertificate()
+
+			if !*noverify {
+				tlsConfig.ClientAuth = tls.RequireAndVerifyClientCert
+				tlsConfig.ClientCAs = pool
+			}
+
+			srvr := http.Server{
+				Addr:      *tlsAddr,
+				TLSConfig: &tlsConfig,
+			}
+			return srvr.ListenAndServeTLS(*certPath, *keyPath)
+		})
+	}
+
+	<-ctx.Done()
+	log.Fatal(ctx.Err())
 }
 
 func (cfg *config) doProxy(w http.ResponseWriter, r *http.Request) {
