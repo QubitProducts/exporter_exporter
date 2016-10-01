@@ -40,7 +40,7 @@ var (
 	certPath = flag.String("web.tls.cert", "cert.pem", "Path to cert")
 	keyPath  = flag.String("web.tls.key", "key.pem", "Path to key")
 	caPath   = flag.String("web.tls.ca", "ca.pem", "Path to CA to auth clients against")
-	noverify = flag.Bool("web.tls.no-verify", false, "Disable client verification")
+	verify   = flag.Bool("web.tls.verify", false, "Disable client verification")
 	tlsAddr  = flag.String("web.tls.listen-address", "", "The address to listen on for HTTPS requests.")
 
 	tPath = flag.String("web.telemetry-path", "/metrics", "The address to listen on for HTTP requests.")
@@ -140,7 +140,7 @@ func main() {
 			}
 			tlsConfig.BuildNameToCertificate()
 
-			if !*noverify {
+			if *verify {
 				tlsConfig.ClientAuth = tls.RequireAndVerifyClientCert
 				tlsConfig.ClientCAs = pool
 			}
