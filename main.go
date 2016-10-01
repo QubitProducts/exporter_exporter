@@ -107,6 +107,11 @@ func main() {
 
 	eg, ctx := errgroup.WithContext(context.Background())
 
+	if *addr == "" && *tlsAddr == "" {
+		glog.Info("No web addresses to listen on, nothing to do!")
+		os.Exit(0)
+	}
+
 	if *addr != "" {
 		eg.Go(func() error {
 			return http.ListenAndServe(*addr, nil)
