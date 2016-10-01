@@ -47,6 +47,7 @@ func (c httpConfig) GatherWithContext(ctx context.Context) prometheus.GathererFu
 			}
 			return nil, err
 		}
+		defer resp.Body.Close()
 		dec := expfmt.NewDecoder(resp.Body, expfmt.ResponseFormat(resp.Header))
 
 		result := []*dto.MetricFamily{}
