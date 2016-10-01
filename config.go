@@ -19,6 +19,8 @@ import (
 	"io"
 	"time"
 
+	"github.com/golang/glog"
+
 	yaml "gopkg.in/yaml.v2"
 )
 
@@ -26,11 +28,13 @@ type config struct {
 	Global struct {
 	}
 	Modules map[string]moduleConfig
+	XXX     map[string]interface{} `yaml:",inline"`
 }
 
 type moduleConfig struct {
-	Method  string        `yaml:"method"`
-	Timeout time.Duration `yaml:"timeout"`
+	Method  string                 `yaml:"method"`
+	Timeout time.Duration          `yaml:"timeout"`
+	XXX     map[string]interface{} `yaml:",inline"`
 
 	Exec execConfig `yaml:"exec"`
 	HTTP httpConfig `yaml:"http"`
@@ -39,19 +43,21 @@ type moduleConfig struct {
 }
 
 type httpConfig struct {
-	Verify  *bool  `yaml:"verify"`  // no default
-	Port    int    `yaml:"port"`    // no default
-	Path    string `yaml:"path"`    // /metrics
-	Scheme  string `yaml:"scheme"`  // http
-	Address string `yaml:"address"` // 127.0.0.1
+	Verify  *bool                  `yaml:"verify"`  // no default
+	Port    int                    `yaml:"port"`    // no default
+	Path    string                 `yaml:"path"`    // /metrics
+	Scheme  string                 `yaml:"scheme"`  // http
+	Address string                 `yaml:"address"` // 127.0.0.1
+	XXX     map[string]interface{} `yaml:",inline"`
 
 	mcfg *moduleConfig
 }
 
 type execConfig struct {
-	Command string            `yaml:"command"`
-	Args    []string          `yaml:"args"`
-	Env     map[string]string `yaml:"env"`
+	Command string                 `yaml:"command"`
+	Args    []string               `yaml:"args"`
+	Env     map[string]string      `yaml:"env"`
+	XXX     map[string]interface{} `yaml:",inline"`
 
 	mcfg *moduleConfig
 }
@@ -63,9 +69,21 @@ func readConfig(r io.Reader) (*config, error) {
 
 	err := yaml.Unmarshal(buf.Bytes(), &cfg)
 
+	if len(cfg.XXX) != 0 {
+		glog.Fatalf("Uknown configuration fields: %v", cfg.XXX)
+	}
+
 	for s := range cfg.Modules {
+		if len(cfg.Modules[s].XXX) != 0 {
+			glog.Fatalf("Uknown module configuration fields: %v", cfg.Modules[s].XXX)
+		}
+
 		if cfg.Modules[s].Method == "http" {
 			hcfg := cfg.Modules[s]
+			if len(hcfg.HTTP.XXX) != 0 {
+				glog.Fatalf("Uknown http module  configuration fields: %v", hcfg.HTTP.XXX)
+			}
+
 			if hcfg.HTTP.Port == 0 {
 				return nil, fmt.Errorf("module %v must have a non-zero port set", s)
 			}
@@ -85,6 +103,10 @@ func readConfig(r io.Reader) (*config, error) {
 			cfg.Modules[s] = hcfg
 		}
 		if cfg.Modules[s].Method == "exec" {
+			ecfg := cfg.Modules[s]
+			if len(ecfg.Exec.XXX) != 0 {
+				glog.Fatalf("Uknown exec module configuration fields: %v", ecfg.Exec.XXX)
+			}
 		}
 	}
 

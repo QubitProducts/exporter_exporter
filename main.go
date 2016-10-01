@@ -41,7 +41,6 @@ var (
 	keyPath  = flag.String("web.tls.key", "key.pem", "Path to key")
 	caPath   = flag.String("web.tls.ca", "ca.pem", "Path to CA to auth clients against")
 	noverify = flag.Bool("web.tls.no-verify", false, "Disable client verification")
-	regexStr = flag.String("web.tls.client-regex", ".*", "Regular expression to match against CNs (start and end anchors will be added)")
 	tlsAddr  = flag.String("web.tls.listen-address", "", "The address to listen on for HTTPS requests.")
 
 	tPath = flag.String("web.telemetry-path", "/metrics", "The address to listen on for HTTP requests.")
