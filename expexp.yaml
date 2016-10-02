@@ -26,3 +26,9 @@ modules:
         THING: "1"
         THING2: "2"
 
+  blackbox:
+    method: http
+    http:
+       port: 9115
+       path: probe
+

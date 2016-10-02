@@ -161,11 +161,7 @@ func (cfg *config) doProxy(w http.ResponseWriter, r *http.Request) {
 	mod, ok := r.URL.Query()["module"]
 	if !ok {
 		glog.Infof("no module given")
-		return
-	}
-
-	if len(mod) != 1 {
-		glog.Infof("you must pass exactly one module parameter")
+		http.Error(w, fmt.Sprintf("require parameter module is missing%v\n", mod), http.StatusBadRequest)
 		return
 	}
 

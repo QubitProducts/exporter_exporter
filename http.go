@@ -31,12 +31,16 @@ import (
 	"github.com/prometheus/common/expfmt"
 )
 
-func (c httpConfig) GatherWithContext(ctx context.Context) prometheus.GathererFunc {
+func (c httpConfig) GatherWithContext(ctx context.Context, r *http.Request) prometheus.GathererFunc {
 	return func() ([]*dto.MetricFamily, error) {
+		vs := r.URL.Query()
+		vs["module"] = vs["module"][1:]
+
 		url := &url.URL{
-			Scheme: c.Scheme,
-			Host:   net.JoinHostPort(c.Address, strconv.Itoa(c.Port)),
-			Path:   c.Path,
+			Scheme:   c.Scheme,
+			Host:     net.JoinHostPort(c.Address, strconv.Itoa(c.Port)),
+			Path:     c.Path,
+			RawQuery: vs.Encode(),
 		}
 		resp, err := ctxhttp.Get(ctx, http.DefaultClient, url.String())
 		if err != nil {
@@ -72,6 +76,7 @@ func (c httpConfig) GatherWithContext(ctx context.Context) prometheus.GathererFu
 
 func (c httpConfig) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	var h http.Handler
+
 	if !(*c.Verify) {
 		// proxy directly
 		rt := &http.Transport{
@@ -83,14 +88,19 @@ func (c httpConfig) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		h = &httputil.ReverseProxy{
 			Transport: rt,
 			Director: func(r *http.Request) {
+				vs := r.URL.Query()
+				vs["module"] = vs["module"][1:]
+				r.URL.RawQuery = vs.Encode()
+
 				r.URL.Scheme = c.Scheme
 				r.URL.Host = net.JoinHostPort(c.Address, strconv.Itoa(c.Port))
 				r.URL.Path = c.Path
+
 			},
 		}
 	} else {
 		ctx := r.Context()
-		g := c.GatherWithContext(ctx)
+		g := c.GatherWithContext(ctx, r)
 		h = promhttp.HandlerFor(g, promhttp.HandlerOpts{})
 	}
 
