@@ -23,6 +23,8 @@ import (
 	"log"
 	"net/http"
 	"os"
+	"path/filepath"
+	"strings"
 	"time"
 
 	"golang.org/x/sync/errgroup"
@@ -34,6 +36,7 @@ import (
 
 var (
 	cfgFile = flag.String("config.file", "expexp.yaml", "The path to the configuration file.")
+	cfgDir  = flag.String("config.dirs", "", "The path to a directory of configuration files.")
 
 	addr = flag.String("web.listen-address", ":9999", "The address to listen on for HTTP requests.")
 
@@ -99,6 +102,36 @@ func main() {
 	cfg, err := readConfig(r)
 	if err != nil {
 		glog.Fatalf("%+v", err)
+	}
+
+	if *cfgDir != "" {
+		mfs, err := ioutil.ReadDir(*cfgDir)
+		if err != nil {
+			glog.Fatalf("failed reading configs, %s", err)
+		}
+
+		for _, mf := range mfs {
+			if mf.IsDir() || !strings.HasSuffix(mf.Name(), ".yaml") {
+				glog.Infof("skipping non-yaml file %v", mf.Name())
+				continue
+			}
+			mn := mf.Name()
+			mn = mn[0 : len(mn)-5]
+
+			if _, ok := cfg.Modules[mn]; ok {
+				glog.Fatalf("module %s is already defined", mn)
+			}
+
+			fn := filepath.Join(*cfgDir, mf.Name())
+			r, err := os.Open(fn)
+
+			mcfg, err := readModuleConfig(mn, r)
+			if err != nil {
+				glog.Fatalf("failed reading configs %s, %s", mf.Name(), err)
+			}
+
+			cfg.Modules[mn] = mcfg
+		}
 	}
 
 	http.HandleFunc("/proxy", cfg.doProxy)

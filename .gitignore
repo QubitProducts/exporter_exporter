@@ -1,2 +1,4 @@
 exporter_exporter
 *.pem
+*.deb
+dist

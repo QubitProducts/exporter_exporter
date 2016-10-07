@@ -14,18 +14,6 @@ modules:
     http:
        port: 4194
 
-  somescript: # executed on every request
-    method: exec
-    timeout: 1s
-    exec:
-      command: /tmp/myscript.sh
-      args:
-        - "myarg1"
-        - "myarg2"
-      env:
-        THING: "1"
-        THING2: "2"
-
   blackbox:
     method: http
     http:

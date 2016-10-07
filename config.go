@@ -27,7 +27,7 @@ import (
 type config struct {
 	Global struct {
 	}
-	Modules map[string]moduleConfig
+	Modules map[string]*moduleConfig
 	XXX     map[string]interface{} `yaml:",inline"`
 }
 
@@ -70,45 +70,69 @@ func readConfig(r io.Reader) (*config, error) {
 	err := yaml.Unmarshal(buf.Bytes(), &cfg)
 
 	if len(cfg.XXX) != 0 {
-		glog.Fatalf("Uknown configuration fields: %v", cfg.XXX)
+		glog.Fatalf("Unkown configuration fields: %v", cfg.XXX)
 	}
 
 	for s := range cfg.Modules {
-		if len(cfg.Modules[s].XXX) != 0 {
-			glog.Fatalf("Uknown module configuration fields: %v", cfg.Modules[s].XXX)
-		}
-
-		if cfg.Modules[s].Method == "http" {
-			hcfg := cfg.Modules[s]
-			if len(hcfg.HTTP.XXX) != 0 {
-				glog.Fatalf("Uknown http module  configuration fields: %v", hcfg.HTTP.XXX)
-			}
-
-			if hcfg.HTTP.Port == 0 {
-				return nil, fmt.Errorf("module %v must have a non-zero port set", s)
-			}
-			if hcfg.HTTP.Verify == nil {
-				v := true
-				hcfg.HTTP.Verify = &v
-			}
-			if hcfg.HTTP.Scheme == "" {
-				hcfg.HTTP.Scheme = "http"
-			}
-			if hcfg.HTTP.Path == "" {
-				hcfg.HTTP.Path = "/metrics"
-			}
-			if hcfg.HTTP.Address == "" {
-				hcfg.HTTP.Address = "localhost"
-			}
-			cfg.Modules[s] = hcfg
-		}
-		if cfg.Modules[s].Method == "exec" {
-			ecfg := cfg.Modules[s]
-			if len(ecfg.Exec.XXX) != 0 {
-				glog.Fatalf("Uknown exec module configuration fields: %v", ecfg.Exec.XXX)
-			}
+		if err := checkModuleConfig(s, cfg.Modules[s]); err != nil {
+			return nil, err
 		}
 	}
 
 	return &cfg, err
+}
+
+func readModuleConfig(name string, r io.Reader) (*moduleConfig, error) {
+	buf := bytes.Buffer{}
+	io.Copy(&buf, r)
+	cfg := moduleConfig{}
+
+	err := yaml.Unmarshal(buf.Bytes(), &cfg)
+	if err != nil {
+		return nil, err
+	}
+
+	if err = checkModuleConfig(name, &cfg); err != nil {
+		return nil, err
+	}
+
+	return &cfg, nil
+}
+
+func checkModuleConfig(name string, cfg *moduleConfig) error {
+	if len(cfg.XXX) != 0 {
+		return fmt.Errorf("Unkown module configuration fields: %v", cfg.XXX)
+	}
+
+	switch cfg.Method {
+	case "http":
+		if len(cfg.HTTP.XXX) != 0 {
+			glog.Fatalf("Unkown http module  configuration fields: %v", cfg.HTTP.XXX)
+		}
+
+		if cfg.HTTP.Port == 0 {
+			return fmt.Errorf("module %v must have a non-zero port set", name)
+		}
+		if cfg.HTTP.Verify == nil {
+			v := true
+			cfg.HTTP.Verify = &v
+		}
+		if cfg.HTTP.Scheme == "" {
+			cfg.HTTP.Scheme = "http"
+		}
+		if cfg.HTTP.Path == "" {
+			cfg.HTTP.Path = "/metrics"
+		}
+		if cfg.HTTP.Address == "" {
+			cfg.HTTP.Address = "localhost"
+		}
+	case "exec":
+		if len(cfg.Exec.XXX) != 0 {
+			return fmt.Errorf("Unkown exec module configuration fields: %v", cfg.Exec.XXX)
+		}
+	default:
+		return fmt.Errorf("Unkown module method: %v", cfg.Method)
+	}
+
+	return nil
 }
