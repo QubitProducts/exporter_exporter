@@ -19,10 +19,12 @@ binary: clean-binary
 	mkdir -p dist/usr/local/bin
 	mkdir -p dist/etc/init
 	mkdir -p dist/etc/default
-	install -m644 $(BINNAME) dist//usr/local/bin/$(BINNAME)
+	mkdir -p dist/etc/exporter_exporter.d/
+	install -m755 $(BINNAME) dist//usr/local/bin/$(BINNAME)
 	install -m644 $(BINNAME).conf dist/etc/init/$(BINNAME).conf
 	install -m644 $(BINNAME).defaults dist/etc/default/$(BINNAME)
 	install -m644 expexp.yaml dist/etc/exporter_exporter.yaml
+	touch dist/etc/exporter_exporter.d/.dir
 clean-binary:
 	rm -f dist/usr/local/bin/$(BINNAME)
 
