@@ -2,7 +2,18 @@
 
 ```   "you mean apache/nginx" - bbrazil ```
 
-This is in a very alpha state, and is largely untested at this time.
+This provides a simple reverse proxy for prometheus exporters. It is intended as a
+single binary alternative to nginx/apache for use in environments where opening multiple
+TCP ports to all servers might be difficult (technically or politically)
+
+The advantages are:
+
+- A single port can be used to query multiple exporters (to ease firewall configuration concerns).
+- Can provide TLS with optional client certificate authentication.
+- Provides verification that the target is serving prometheus metrics.
+- Can be used to execute scripts that produce prometheus metrics.
+- _up_ behaviour is the same as for querying individual collectors.
+- Small code size, minimcal external depedencies, easily auditable
 
 The exporter has two endpoints.
 
@@ -12,25 +23,19 @@ The exporter has two endpoints.
   - params (optional): named parameter to pass to the module (either as CLI args, or http parameters)
 - /metrics: this exposes the metrics for the collector itself.
 
-The exporter has 3 modes of operation:
+Features that will NOT be included:
 
-- A reverse proxy, passing requests to another exporter (typically on the local
-  machine), that parses the returned metrics for verification, and then serves
-  them back to the caller
-- Reverse proxy without verification
-- Pass on the output of a locally run commnad exectuted when the scrape
-  is requested.
+- merging of module outputs into one query (this would break _up_ behaviour)
 
 TODO:
-- TLS with client CA verification
-- Proxy to TLS
-- Pass params and args to downstream exporter
-- process supervisor to start/run exporters
-- Include relabeling in prom config
+
+- Config reload on HUP (or POST, or config file change?)
+- route to a docker/rocket container by name
 
 ## Configuration
 
-In expexp.yaml
+In expexp.yaml list each exporter listening on localhost with its known
+port.
 
 ```
 modules:
@@ -61,10 +66,10 @@ modules:
       env:
         THING: "1"
         THING2: "2"
-
 ```
 
 In your prometheus configuration
+
 ```
 scrape_configs:
   - job_name: 'expexp_metrics'
