@@ -35,6 +35,8 @@ import (
 )
 
 var (
+	printVersion = flag.Bool("version", false, "Print the version and exit")
+
 	cfgFile = flag.String("config.file", "expexp.yaml", "The path to the configuration file.")
 	cfgDir  = flag.String("config.dirs", "", "The path to a directory of configuration files.")
 
@@ -93,6 +95,10 @@ func init() {
 
 func main() {
 	flag.Parse()
+	if *printVersion {
+		fmt.Fprintf(os.Stderr, "Version: %s\n", versionStr())
+		os.Exit(0)
+	}
 
 	r, err := os.Open(*cfgFile)
 	if err != nil {
