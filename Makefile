@@ -1,6 +1,10 @@
 GITHUB_ORG  = QubitProducts
 GITHUB_REPO = exporter_exporter
 
+DOCKER_REGISTRY = qubitproducts
+DOCKER_NAME     = exporter_exporter
+DOCKER_IMAGE    = $(DOCKER_REGISTRY)/$(DOCKER_NAME):$(VERSION)
+
 SHELL        := /usr/bin/env bash
 GO           := GO15VENDOREXPERIMENT=1 go
 FIRST_GOPATH := $(firstword $(subst :, ,$(GOPATH)))
@@ -119,3 +123,11 @@ package: prepare-package
 	  -p ../$(PACKAGE_FILE) \
 	  .
 
+.PHONY: build-docker release-docker
+build-docker: promu
+	$Q echo ">> crossbuilding binaries"
+	$Q promu crossbuild -p linux/amd64
+	$Q docker build -t $(DOCKER_IMAGE) .
+
+release-docker: build-docker
+	$Q docker push $(DOCKER_IMAGE)
