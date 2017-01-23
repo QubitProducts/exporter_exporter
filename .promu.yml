@@ -1,0 +1,33 @@
+verbose: true
+go:
+    version: 1.7
+    cgo: false
+repository:
+    path: github.com/QubitProducts/exporter_exporter
+build:
+    prefix: .
+    binaries:
+        - name: exporter_exporter
+          path: .
+    flags: -a
+    ldflags: |
+        -s
+        -X main.Version={{.Version}}
+        -X main.Revision={{.Revision}}
+        -X main.Branch={{.Branch}}
+        -X main.BuildUser={{user}}@{{host}}
+        -X main.BuildDate={{date "20060102-15:04:05"}}
+tarball:
+    prefix: .
+    files:
+        - LICENSE
+        - NOTICE
+        - README.md
+        - expexp.yaml
+        - exporter_exporter.conf
+        - exporter_exporter.defaults
+crossbuild:
+    platforms:
+        - linux/amd64
+        - darwin/amd64
+        - windows/amd64

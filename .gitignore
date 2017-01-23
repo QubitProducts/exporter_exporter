@@ -2,3 +2,6 @@ exporter_exporter
 *.pem
 *.deb
 dist
+.build
+.tarballs
+vendor
