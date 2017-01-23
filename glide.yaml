@@ -1,0 +1,20 @@
+package: github.com/QubitProducts/exporter_exporter
+import:
+- package: github.com/golang/glog
+- package: github.com/prometheus/client_golang
+  subpackages:
+  - prometheus
+  - prometheus/promhttp
+- package: github.com/prometheus/client_model
+  subpackages:
+  - go
+- package: github.com/prometheus/common
+  subpackages:
+  - expfmt
+- package: golang.org/x/net
+  subpackages:
+  - context/ctxhttp
+- package: golang.org/x/sync
+  subpackages:
+  - errgroup
+- package: gopkg.in/yaml.v2
