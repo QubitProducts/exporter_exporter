@@ -9,6 +9,7 @@ PKGS          = $(shell $(GO) list $(shell glide nv))
 FILES         = $(shell find . -name '*.go' | grep -v vendor)
 PREFIX       ?= $(shell pwd)
 BIN_DIR      ?= $(shell pwd)
+VERSION      ?= $(shell cat VERSION)
 
 PACKAGE_TARGET     = deb
 PACKAGE_NAME       = expexp
