@@ -16,8 +16,10 @@ package main
 import (
 	"bytes"
 	"crypto/tls"
+	"crypto/x509"
 	"fmt"
 	"io"
+	"io/ioutil"
 	"time"
 
 	"github.com/golang/glog"
@@ -148,4 +150,28 @@ func checkModuleConfig(name string, cfg *moduleConfig) error {
 	}
 
 	return nil
+}
+
+func (c httpConfig) getTLSConfig() (*tls.Config, error) {
+	config := &tls.Config{
+		InsecureSkipVerify: c.TLSInsecureSkipVerify,
+	}
+	if c.TLSCACertFile != nil {
+		caCert, err := ioutil.ReadFile(*c.TLSCACertFile)
+		if err != nil {
+			return nil, errors.Wrapf(err, "could not read ca from %v", c.TLSCACertFile)
+		}
+
+		config.ClientCAs = x509.NewCertPool()
+		config.ClientCAs.AppendCertsFromPEM(caCert)
+	}
+	if c.TLSCertFile != nil && c.TLSKeyFile != nil {
+		cert, err := tls.LoadX509KeyPair(*c.TLSCertFile, *c.TLSKeyFile)
+		if err != nil {
+			return nil, errors.Wrapf(err, "could not read keypair from %v, %v", c.TLSCertFile, c.TLSKeyFile)
+		}
+		config.Certificates = []tls.Certificate{cert}
+	}
+
+	return config, nil
 }

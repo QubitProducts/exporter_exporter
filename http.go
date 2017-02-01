@@ -15,10 +15,7 @@ package main
 
 import (
 	"context"
-	"crypto/tls"
-	"crypto/x509"
 	"io"
-	"io/ioutil"
 	"net"
 	"net/http"
 	"net/http/httputil"
@@ -28,7 +25,6 @@ import (
 	"golang.org/x/net/context/ctxhttp"
 
 	"github.com/golang/glog"
-	"github.com/pkg/errors"
 	"github.com/prometheus/client_golang/prometheus"
 	"github.com/prometheus/client_golang/prometheus/promhttp"
 	dto "github.com/prometheus/client_model/go"
@@ -119,28 +115,4 @@ func (c httpConfig) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	}
 
 	h.ServeHTTP(w, r)
-}
-
-func (c httpConfig) getTLSConfig() (*tls.Config, error) {
-	config := &tls.Config{
-		InsecureSkipVerify: c.TLSInsecureSkipVerify,
-	}
-	if c.TLSCACertFile != nil {
-		caCert, err := ioutil.ReadFile(*c.TLSCACertFile)
-		if err != nil {
-			return nil, errors.Wrapf(err, "could not read ca from %v", c.TLSCACertFile)
-		}
-
-		config.ClientCAs = x509.NewCertPool()
-		config.ClientCAs.AppendCertsFromPEM(caCert)
-	}
-	if c.TLSCertFile != nil && c.TLSKeyFile != nil {
-		cert, err := tls.LoadX509KeyPair(*c.TLSCertFile, *c.TLSKeyFile)
-		if err != nil {
-			return nil, errors.Wrapf(err, "could not read keypair from %v, %v", c.TLSCertFile, c.TLSKeyFile)
-		}
-		config.Certificates = []tls.Certificate{cert}
-	}
-
-	return config, nil
 }
