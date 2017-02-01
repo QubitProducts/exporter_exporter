@@ -18,10 +18,10 @@ import (
 	"crypto/tls"
 	"fmt"
 	"io"
-	"sync"
 	"time"
 
 	"github.com/golang/glog"
+	"github.com/pkg/errors"
 
 	yaml "gopkg.in/yaml.v2"
 )
@@ -56,9 +56,8 @@ type httpConfig struct {
 	Address               string                 `yaml:"address"`                  // 127.0.0.1
 	XXX                   map[string]interface{} `yaml:",inline"`
 
-	tlsConfigMu *sync.RWMutex
-	tlsConfig   *tls.Config
-	mcfg        *moduleConfig
+	tlsConfig *tls.Config
+	mcfg      *moduleConfig
 }
 
 type execConfig struct {
@@ -133,6 +132,12 @@ func checkModuleConfig(name string, cfg *moduleConfig) error {
 		}
 		if cfg.HTTP.Address == "" {
 			cfg.HTTP.Address = "localhost"
+		}
+
+		var err error
+		cfg.HTTP.tlsConfig, err = cfg.HTTP.getTLSConfig()
+		if err != nil {
+			return errors.Wrap(err, "could not create tls config")
 		}
 	case "exec":
 		if len(cfg.Exec.XXX) != 0 {

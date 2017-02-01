@@ -122,13 +122,6 @@ func (c httpConfig) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 }
 
 func (c httpConfig) getTLSConfig() (*tls.Config, error) {
-	c.tlsConfigMu.RLock()
-	if c.tlsConfig != nil {
-		c.tlsConfigMu.RUnlock()
-		return c.tlsConfig, nil
-	}
-	c.tlsConfigMu.RUnlock()
-
 	config := &tls.Config{
 		InsecureSkipVerify: c.TLSInsecureSkipVerify,
 	}
@@ -148,10 +141,6 @@ func (c httpConfig) getTLSConfig() (*tls.Config, error) {
 		}
 		config.Certificates = []tls.Certificate{cert}
 	}
-
-	c.tlsConfigMu.Lock()
-	c.tlsConfig = config
-	c.tlsConfigMu.Unlock()
 
 	return config, nil
 }
