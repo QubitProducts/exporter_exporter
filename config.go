@@ -15,8 +15,10 @@ package main
 
 import (
 	"bytes"
+	"crypto/tls"
 	"fmt"
 	"io"
+	"sync"
 	"time"
 
 	"github.com/golang/glog"
@@ -43,17 +45,20 @@ type moduleConfig struct {
 }
 
 type httpConfig struct {
-	Verify     *bool                  `yaml:"verify"`       // no default
-	CertFile   *string                `yaml:"cert_file"`    // no default
-	KeyFile    *string                `yaml:"key_file"`     // no default
-	CACertFile *string                `yaml:"ca_cert_file"` // no default
-	Port       int                    `yaml:"port"`         // no default
-	Path       string                 `yaml:"path"`         // /metrics
-	Scheme     string                 `yaml:"scheme"`       // http
-	Address    string                 `yaml:"address"`      // 127.0.0.1
-	XXX        map[string]interface{} `yaml:",inline"`
+	Verify                *bool                  `yaml:"verify"`                   // no default
+	TLSInsecureSkipVerify bool                   `yaml:"tls_insecure_skip_verify"` // false
+	TLSCertFile           *string                `yaml:"tls_cert_file"`            // no default
+	TLSKeyFile            *string                `yaml:"tls_key_file"`             // no default
+	TLSCACertFile         *string                `yaml:"tls_ca_cert_file"`         // no default
+	Port                  int                    `yaml:"port"`                     // no default
+	Path                  string                 `yaml:"path"`                     // /metrics
+	Scheme                string                 `yaml:"scheme"`                   // http
+	Address               string                 `yaml:"address"`                  // 127.0.0.1
+	XXX                   map[string]interface{} `yaml:",inline"`
 
-	mcfg *moduleConfig
+	tlsConfigMu *sync.RWMutex
+	tlsConfig   *tls.Config
+	mcfg        *moduleConfig
 }
 
 type execConfig struct {
