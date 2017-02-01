@@ -42,7 +42,12 @@ func (c httpConfig) GatherWithContext(ctx context.Context, r *http.Request) prom
 			Path:     c.Path,
 			RawQuery: vs.Encode(),
 		}
-		resp, err := ctxhttp.Get(ctx, http.DefaultClient, url.String())
+		client := &http.Client{
+			Transport: &http.Transport{
+				TLSClientConfig: c.tlsConfig,
+			},
+		}
+		resp, err := ctxhttp.Get(ctx, client, url.String())
 		if err != nil {
 			if glog.V(1) {
 				glog.Errorf("http proxy for module %v failed %+v", c.mcfg.name, err)
@@ -88,6 +93,7 @@ func (c httpConfig) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 				Timeout: c.mcfg.Timeout,
 			}).Dial,
 			TLSHandshakeTimeout: c.mcfg.Timeout,
+			TLSClientConfig:     c.tlsConfig,
 		}
 		h = &httputil.ReverseProxy{
 			Transport: rt,

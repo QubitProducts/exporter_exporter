@@ -15,11 +15,15 @@ package main
 
 import (
 	"bytes"
+	"crypto/tls"
+	"crypto/x509"
 	"fmt"
 	"io"
+	"io/ioutil"
 	"time"
 
 	"github.com/golang/glog"
+	"github.com/pkg/errors"
 
 	yaml "gopkg.in/yaml.v2"
 )
@@ -43,14 +47,19 @@ type moduleConfig struct {
 }
 
 type httpConfig struct {
-	Verify  *bool                  `yaml:"verify"`  // no default
-	Port    int                    `yaml:"port"`    // no default
-	Path    string                 `yaml:"path"`    // /metrics
-	Scheme  string                 `yaml:"scheme"`  // http
-	Address string                 `yaml:"address"` // 127.0.0.1
-	XXX     map[string]interface{} `yaml:",inline"`
+	Verify                *bool                  `yaml:"verify"`                   // no default
+	TLSInsecureSkipVerify bool                   `yaml:"tls_insecure_skip_verify"` // false
+	TLSCertFile           *string                `yaml:"tls_cert_file"`            // no default
+	TLSKeyFile            *string                `yaml:"tls_key_file"`             // no default
+	TLSCACertFile         *string                `yaml:"tls_ca_cert_file"`         // no default
+	Port                  int                    `yaml:"port"`                     // no default
+	Path                  string                 `yaml:"path"`                     // /metrics
+	Scheme                string                 `yaml:"scheme"`                   // http
+	Address               string                 `yaml:"address"`                  // 127.0.0.1
+	XXX                   map[string]interface{} `yaml:",inline"`
 
-	mcfg *moduleConfig
+	tlsConfig *tls.Config
+	mcfg      *moduleConfig
 }
 
 type execConfig struct {
@@ -107,7 +116,7 @@ func checkModuleConfig(name string, cfg *moduleConfig) error {
 	switch cfg.Method {
 	case "http":
 		if len(cfg.HTTP.XXX) != 0 {
-			glog.Fatalf("Unkown http module  configuration fields: %v", cfg.HTTP.XXX)
+			glog.Fatalf("Unknown http module configuration fields: %v", cfg.HTTP.XXX)
 		}
 
 		if cfg.HTTP.Port == 0 {
@@ -126,13 +135,43 @@ func checkModuleConfig(name string, cfg *moduleConfig) error {
 		if cfg.HTTP.Address == "" {
 			cfg.HTTP.Address = "localhost"
 		}
+
+		var err error
+		cfg.HTTP.tlsConfig, err = cfg.HTTP.getTLSConfig()
+		if err != nil {
+			return errors.Wrap(err, "could not create tls config")
+		}
 	case "exec":
 		if len(cfg.Exec.XXX) != 0 {
-			return fmt.Errorf("Unkown exec module configuration fields: %v", cfg.Exec.XXX)
+			return fmt.Errorf("Unknown exec module configuration fields: %v", cfg.Exec.XXX)
 		}
 	default:
-		return fmt.Errorf("Unkown module method: %v", cfg.Method)
+		return fmt.Errorf("Unknown module method: %v", cfg.Method)
 	}
 
 	return nil
+}
+
+func (c httpConfig) getTLSConfig() (*tls.Config, error) {
+	config := &tls.Config{
+		InsecureSkipVerify: c.TLSInsecureSkipVerify,
+	}
+	if c.TLSCACertFile != nil {
+		caCert, err := ioutil.ReadFile(*c.TLSCACertFile)
+		if err != nil {
+			return nil, errors.Wrapf(err, "could not read ca from %v", c.TLSCACertFile)
+		}
+
+		config.ClientCAs = x509.NewCertPool()
+		config.ClientCAs.AppendCertsFromPEM(caCert)
+	}
+	if c.TLSCertFile != nil && c.TLSKeyFile != nil {
+		cert, err := tls.LoadX509KeyPair(*c.TLSCertFile, *c.TLSKeyFile)
+		if err != nil {
+			return nil, errors.Wrapf(err, "could not read keypair from %v, %v", c.TLSCertFile, c.TLSKeyFile)
+		}
+		config.Certificates = []tls.Certificate{cert}
+	}
+
+	return config, nil
 }
