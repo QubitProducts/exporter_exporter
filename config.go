@@ -115,7 +115,7 @@ func checkModuleConfig(name string, cfg *moduleConfig) error {
 	switch cfg.Method {
 	case "http":
 		if len(cfg.HTTP.XXX) != 0 {
-			glog.Fatalf("Unknow http module configuration fields: %v", cfg.HTTP.XXX)
+			glog.Fatalf("Unknown http module configuration fields: %v", cfg.HTTP.XXX)
 		}
 
 		if cfg.HTTP.Port == 0 {
@@ -136,10 +136,10 @@ func checkModuleConfig(name string, cfg *moduleConfig) error {
 		}
 	case "exec":
 		if len(cfg.Exec.XXX) != 0 {
-			return fmt.Errorf("Unknow exec module configuration fields: %v", cfg.Exec.XXX)
+			return fmt.Errorf("Unknown exec module configuration fields: %v", cfg.Exec.XXX)
 		}
 	default:
-		return fmt.Errorf("Unknow module method: %v", cfg.Method)
+		return fmt.Errorf("Unknown module method: %v", cfg.Method)
 	}
 
 	return nil
