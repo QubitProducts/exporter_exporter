@@ -78,7 +78,9 @@ func (c execConfig) GatherWithContext(ctx context.Context, r *http.Request) prom
 		}
 
 		if err != nil {
-			glog.Infof("Command module %v failed %+v", c.mcfg.name, err)
+			if glog.V(1) {
+				glog.Infof("Command module %v failed %+v", c.mcfg.name, err)
+			}
 			cmdFailsCount.WithLabelValues(c.mcfg.name).Inc()
 			if err == context.DeadlineExceeded {
 				proxyTimeoutCount.WithLabelValues(c.mcfg.name).Inc()

@@ -199,7 +199,9 @@ func main() {
 func (cfg *config) doProxy(w http.ResponseWriter, r *http.Request) {
 	mod, ok := r.URL.Query()["module"]
 	if !ok {
-		glog.Infof("no module given")
+		if glog.V(1) {
+			glog.Infof("no module given")
+		}
 		http.Error(w, fmt.Sprintf("require parameter module is missing%v\n", mod), http.StatusBadRequest)
 		return
 	}
@@ -211,7 +213,9 @@ func (cfg *config) doProxy(w http.ResponseWriter, r *http.Request) {
 	var h http.Handler
 	if m, ok := cfg.Modules[mod[0]]; !ok {
 		proxyErrorCount.WithLabelValues("unknown").Inc()
-		glog.Infof("unknown module requested  %v\n", mod)
+		if glog.V(1) {
+			glog.Infof("unknown module requested  %v\n", mod)
+		}
 		http.Error(w, fmt.Sprintf("unknown module %v\n", mod), http.StatusNotFound)
 		return
 	} else {
@@ -249,7 +253,9 @@ func (m moduleConfig) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		m.HTTP.mcfg = &m
 		m.HTTP.ServeHTTP(w, nr)
 	default:
-		glog.Infof("unknown module method  %v\n", m.Method)
+		if glog.V(1) {
+			glog.Errorf("unknown module method  %v\n", m.Method)
+		}
 		proxyErrorCount.WithLabelValues(m.name).Inc()
 		http.Error(w, fmt.Sprintf("unknown module method %v\n", m.Method), http.StatusNotFound)
 		return

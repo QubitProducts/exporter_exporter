@@ -44,7 +44,9 @@ func (c httpConfig) GatherWithContext(ctx context.Context, r *http.Request) prom
 		}
 		resp, err := ctxhttp.Get(ctx, http.DefaultClient, url.String())
 		if err != nil {
-			glog.Infof("http proxy for module %v failed %+v", c.mcfg.name, err)
+			if glog.V(1) {
+				glog.Errorf("http proxy for module %v failed %+v", c.mcfg.name, err)
+			}
 			proxyErrorCount.WithLabelValues(c.mcfg.name).Inc()
 			if err == context.DeadlineExceeded {
 				proxyTimeoutCount.WithLabelValues(c.mcfg.name).Inc()
@@ -63,7 +65,9 @@ func (c httpConfig) GatherWithContext(ctx context.Context, r *http.Request) prom
 			}
 			if err != nil {
 				proxyMalformedCount.WithLabelValues(c.mcfg.name).Inc()
-				glog.Infof("err %+v", err)
+				if glog.V(1) {
+					glog.Errorf("err %+v", err)
+				}
 				return nil, err
 			}
 
