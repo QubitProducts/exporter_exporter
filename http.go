@@ -42,12 +42,7 @@ func (c httpConfig) GatherWithContext(ctx context.Context, r *http.Request) prom
 			Path:     c.Path,
 			RawQuery: vs.Encode(),
 		}
-		client := &http.Client{
-			Transport: &http.Transport{
-				TLSClientConfig: c.tlsConfig,
-			},
-		}
-		resp, err := ctxhttp.Get(ctx, client, url.String())
+		resp, err := ctxhttp.Get(ctx, c.httpClient, url.String())
 		if err != nil {
 			if glog.V(1) {
 				glog.Errorf("http proxy for module %v failed %+v", c.mcfg.name, err)

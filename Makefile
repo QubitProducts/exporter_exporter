@@ -1,9 +1,10 @@
 GITHUB_ORG  = QubitProducts
 GITHUB_REPO = exporter_exporter
 
-DOCKER_REGISTRY = qubitproducts
-DOCKER_NAME     = exporter_exporter
-DOCKER_IMAGE    = $(DOCKER_REGISTRY)/$(DOCKER_NAME):$(VERSION)
+DOCKER_REGISTRY     = qubitproducts
+DOCKER_NAME         = exporter_exporter
+DOCKER_IMAGE        = $(DOCKER_REGISTRY)/$(DOCKER_NAME):$(VERSION)
+DOCKER_IMAGE_LATEST = $(DOCKER_REGISTRY)/$(DOCKER_NAME):latest
 
 SHELL        := /usr/bin/env bash
 GO           := GO15VENDOREXPERIMENT=1 go
@@ -131,3 +132,5 @@ build-docker: promu
 
 release-docker: build-docker
 	$Q docker push $(DOCKER_IMAGE)
+	$Q docker tag $(DOCKER_IMAGE) $(DOCKER_IMAGE_LATEST)
+	$Q docker push $(DOCKER_IMAGE_LATEST)
