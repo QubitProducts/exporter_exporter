@@ -20,6 +20,7 @@ import (
 	"fmt"
 	"io"
 	"io/ioutil"
+	"net/http"
 	"time"
 
 	"github.com/golang/glog"
@@ -58,8 +59,9 @@ type httpConfig struct {
 	Address               string                 `yaml:"address"`                  // 127.0.0.1
 	XXX                   map[string]interface{} `yaml:",inline"`
 
-	tlsConfig *tls.Config
-	mcfg      *moduleConfig
+	tlsConfig  *tls.Config
+	httpClient *http.Client
+	mcfg       *moduleConfig
 }
 
 type execConfig struct {
@@ -136,10 +138,15 @@ func checkModuleConfig(name string, cfg *moduleConfig) error {
 			cfg.HTTP.Address = "localhost"
 		}
 
-		var err error
-		cfg.HTTP.tlsConfig, err = cfg.HTTP.getTLSConfig()
+		tlsConfig, err := cfg.HTTP.getTLSConfig()
 		if err != nil {
 			return errors.Wrap(err, "could not create tls config")
+		}
+		cfg.HTTP.tlsConfig = tlsConfig
+		cfg.HTTP.httpClient = &http.Client{
+			Transport: &http.Transport{
+				TLSClientConfig: tlsConfig,
+			},
 		}
 	case "exec":
 		if len(cfg.Exec.XXX) != 0 {
