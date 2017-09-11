@@ -37,8 +37,9 @@ import (
 var (
 	printVersion = flag.Bool("version", false, "Print the version and exit")
 
-	cfgFile = flag.String("config.file", "expexp.yaml", "The path to the configuration file.")
-	cfgDir  = flag.String("config.dirs", "", "The path to a directory of configuration files.")
+	cfgFile  = flag.String("config.file", "expexp.yaml", "The path to the configuration file.")
+	cfgDirs  StringSliceFlag
+	skipDirs = flag.Bool("config.skip-dirs", false, "Skip non existent -config.dirs entries instead of terminating.")
 
 	addr = flag.String("web.listen-address", ":9999", "The address to listen on for HTTP requests.")
 
@@ -91,6 +92,7 @@ func init() {
 	prometheus.MustRegister(proxyMalformedCount)
 	prometheus.MustRegister(cmdStartsCount)
 	prometheus.MustRegister(cmdFailsCount)
+	flag.Var(&cfgDirs, "config.dirs", "The path to directories of configuration files, can be specified multiple times.")
 }
 
 func main() {
@@ -99,45 +101,65 @@ func main() {
 		fmt.Fprintf(os.Stderr, "Version: %s\n", versionStr())
 		os.Exit(0)
 	}
-
-	r, err := os.Open(*cfgFile)
-	if err != nil {
-		glog.Fatalf("%+v", err)
+	cfg := &config{
+		Modules: make(map[string]*moduleConfig),
+		XXX:     make(map[string]interface{}),
 	}
-
-	cfg, err := readConfig(r)
-	if err != nil {
-		glog.Fatalf("%+v", err)
-	}
-
-	if *cfgDir != "" {
-		mfs, err := ioutil.ReadDir(*cfgDir)
+	if *cfgFile != "" {
+		r, err := os.Open(*cfgFile)
 		if err != nil {
-			glog.Fatalf("failed reading configs, %s", err)
+			glog.Fatalf("%+v", err)
+		}
+		cfg, err = readConfig(r)
+		if err != nil {
+			glog.Fatalf("%+v", err)
+		}
+		_ = r.Close()
+		for mn, _ := range cfg.Modules {
+			glog.Infof("read module config '%s' from: %s", mn, *cfgFile)
+		}
+	}
+
+cfgDirs:
+	for _, cfgDir := range cfgDirs {
+		mfs, err := ioutil.ReadDir(cfgDir)
+		if err != nil {
+			if *skipDirs && os.IsNotExist(err) {
+				glog.Warningf("skipping non existent config.dirs entry '%s'", cfgDir)
+				continue cfgDirs
+			}
+			glog.Fatalf("failed reading directory: %s, %v", cfgDir, err)
 		}
 
+		yamlSuffixes := map[string]bool{
+			".yml":  true,
+			".yaml": true,
+		}
 		for _, mf := range mfs {
-			if mf.IsDir() || !strings.HasSuffix(mf.Name(), ".yaml") {
-				glog.Infof("skipping non-yaml file %v", mf.Name())
+			fullpath := filepath.Join(cfgDir, mf.Name())
+			if mf.IsDir() || !yamlSuffixes[filepath.Ext(mf.Name())] {
+				glog.Warningf("skipping non-yaml file %v", fullpath)
 				continue
 			}
-			mn := mf.Name()
-			mn = mn[0 : len(mn)-5]
-
+			mn := strings.TrimSuffix(mf.Name(), filepath.Ext(mf.Name()))
 			if _, ok := cfg.Modules[mn]; ok {
 				glog.Fatalf("module %s is already defined", mn)
 			}
-
-			fn := filepath.Join(*cfgDir, mf.Name())
-			r, err := os.Open(fn)
-
-			mcfg, err := readModuleConfig(mn, r)
+			r, err := os.Open(fullpath)
 			if err != nil {
-				glog.Fatalf("failed reading configs %s, %s", mf.Name(), err)
+				glog.Fatalf("failed to open config file: %s: %v", fullpath, err)
 			}
-
+			mcfg, err := readModuleConfig(mn, r)
+			_ = r.Close()
+			if err != nil {
+				glog.Fatalf("failed reading configs %s, %s", fullpath, err)
+			}
+			glog.Infof("read module config '%s' from: %s", mn, fullpath)
 			cfg.Modules[mn] = mcfg
 		}
+	}
+	if len(cfg.Modules) == 0 {
+		glog.Errorln("no modules loaded from any config file")
 	}
 
 	http.HandleFunc("/proxy", cfg.doProxy)
@@ -260,4 +282,18 @@ func (m moduleConfig) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, fmt.Sprintf("unknown module method %v\n", m.Method), http.StatusNotFound)
 		return
 	}
+}
+
+// StringSliceFlags collects multiple uses of a named flag into a slice.
+type StringSliceFlag []string
+
+func (s *StringSliceFlag) String() string {
+	// Just some representation output, not actually used to parse the input,
+	// the flag is instead supposed to be specified multiple times.
+	return strings.Join(*s, ", ")
+}
+
+func (s *StringSliceFlag) Set(value string) error {
+	*s = append(*s, value)
+	return nil
 }
