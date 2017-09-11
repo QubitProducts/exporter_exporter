@@ -14,6 +14,7 @@
 package main
 
 import (
+	"bufio"
 	"context"
 	"crypto/tls"
 	"crypto/x509"
@@ -41,6 +42,9 @@ var (
 	cfgDir  = flag.String("config.dirs", "", "The path to a directory of configuration files.")
 
 	addr = flag.String("web.listen-address", ":9999", "The address to listen on for HTTP requests.")
+
+	bearerToken     = flag.String("web.bearer.token", "", "Bearer authentication token.")
+	bearerTokenFile = flag.String("web.bearer.token-file", "", "File containing the Bearer authentication token.")
 
 	certPath = flag.String("web.tls.cert", "cert.pem", "Path to cert")
 	keyPath  = flag.String("web.tls.key", "key.pem", "Path to key")
@@ -140,8 +144,43 @@ func main() {
 		}
 	}
 
+	var bToken string
+	if *bearerToken != "" {
+		bToken = *bearerToken
+	}
+	if *bearerTokenFile != "" {
+		if bToken != "" {
+			glog.Fatalln("web.bearer.token and web.bearer.token-file are mutually exclusive options")
+		}
+		f, err := os.Open(*bearerTokenFile)
+		if err != nil {
+			glog.Fatalf("error opening bearer.token-file '%s': %v", *bearerTokenFile, err)
+		}
+		defer f.Close()
+		sc := bufio.NewScanner(f)
+		if !sc.Scan() {
+			if err := sc.Err(); err != nil {
+				glog.Fatalf("error reading first line ot web.bearer.token-file '%s': %v", *bearerTokenFile, err)
+			}
+			glog.Fatalf("error reading token from first line of web.bearer.token-file '%s'", *bearerTokenFile)
+		}
+		t := strings.TrimSpace(sc.Text())
+		if t == "" {
+			glog.Fatalf("first line of bearer.token-file must contain the token '%s'", *bearerTokenFile)
+		}
+		_ = f.Close()
+		bToken = t
+	}
+
 	http.HandleFunc("/proxy", cfg.doProxy)
 	http.Handle("/metrics", promhttp.Handler())
+
+	var handler http.Handler
+	if bToken == "" {
+		handler = http.DefaultServeMux
+	} else {
+		handler = &BearerAuthMiddleware{http.DefaultServeMux, bToken}
+	}
 
 	eg, ctx := errgroup.WithContext(context.Background())
 
@@ -152,7 +191,7 @@ func main() {
 
 	if *addr != "" {
 		eg.Go(func() error {
-			return http.ListenAndServe(*addr, nil)
+			return http.ListenAndServe(*addr, handler)
 		})
 	}
 
@@ -187,6 +226,7 @@ func main() {
 			srvr := http.Server{
 				Addr:      *tlsAddr,
 				TLSConfig: &tlsConfig,
+				Handler:   handler,
 			}
 			return srvr.ListenAndServeTLS(*certPath, *keyPath)
 		})

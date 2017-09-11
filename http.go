@@ -21,6 +21,7 @@ import (
 	"net/http/httputil"
 	"net/url"
 	"strconv"
+	"strings"
 
 	"golang.org/x/net/context/ctxhttp"
 
@@ -110,4 +111,31 @@ func (c httpConfig) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	}
 
 	h.ServeHTTP(w, r)
+}
+
+// BearerAuthMiddleware
+type BearerAuthMiddleware struct {
+	http.Handler
+	Token string
+}
+
+func (b BearerAuthMiddleware) ServeHTTP(w http.ResponseWriter, r *http.Request) {
+	authHeader := r.Header.Get("Authorization")
+	if authHeader == "" {
+		w.WriteHeader(http.StatusUnauthorized)
+		_, _ = w.Write([]byte("Authorization header is missing"))
+		return
+	}
+	ss := strings.SplitN(authHeader, " ", 2)
+	if !(len(ss) == 2 && ss[0] == "Bearer") {
+		w.WriteHeader(http.StatusUnauthorized)
+		_, _ = w.Write([]byte("Authorization header not of Bearer type"))
+		return
+	}
+	if ss[1] != b.Token {
+		w.WriteHeader(http.StatusUnauthorized)
+		_, _ = w.Write([]byte("Invalid Bearer Token"))
+		return
+	}
+	b.Handler.ServeHTTP(w, r)
 }
