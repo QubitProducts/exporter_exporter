@@ -155,6 +155,9 @@ func (s *Server) handleRequest(req *Request, conn conn) error {
 	}
 }
 
+// fakeAddr is used when the destaddr isn't a real net.TCPAddr
+var fakeAddr = net.TCPAddr{IP: net.IPv4(127, 0, 0, 1), Port: 1000}
+
 // handleConnect is used to handle a connect command
 func (s *Server) handleConnect(ctx context.Context, conn conn, req *Request) error {
 	// Check if this is allowed
@@ -190,8 +193,14 @@ func (s *Server) handleConnect(ctx context.Context, conn conn, req *Request) err
 	}
 	defer target.Close()
 
-	// Send success
-	local := target.LocalAddr().(*net.TCPAddr)
+	// Send success (pathced to allow )
+	var local *net.TCPAddr
+	if v, ok := conn.RemoteAddr().(*net.TCPAddr); ok {
+		local = v
+	} else {
+		local = &fakeAddr
+	}
+
 	bind := AddrSpec{IP: local.IP, Port: local.Port}
 	if err := sendReply(conn, successReply, &bind); err != nil {
 		return fmt.Errorf("Failed to send reply: %v", err)
