@@ -25,3 +25,15 @@ modules:
        port: 9115
        path: probe
 
+
+  myservice:
+    method: http
+    http:
+      ports:
+        - 8100-8120                  # myservice:8100 to myservice:8120
+        - 192.168.1.1:8100-8120:8300 # myservice:8300 to myservice:8320
+
+  myservice2:
+    method: http
+    http:
+      port: 8100                     # myservice:0 or myservice:8100

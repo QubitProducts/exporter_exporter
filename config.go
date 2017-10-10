@@ -20,14 +20,41 @@ import (
 	"fmt"
 	"io"
 	"io/ioutil"
+	"net"
 	"net/http"
+	"strconv"
 	"time"
 
+	"github.com/QubitProducts/exporter_exporter/pkg/portmap"
 	"github.com/golang/glog"
 	"github.com/pkg/errors"
 
 	yaml "gopkg.in/yaml.v2"
 )
+
+// portMapping .
+type portMapping struct {
+	Exposed  map[portmap.Port]struct{}
+	Bindings map[portmap.Port][]portmap.PortBinding
+}
+
+func (p *portMapping) UnmarshalYAML(unmarshal func(interface{}) error) error {
+	var ss []string
+	if err := unmarshal(&ss); err != nil {
+		return err
+	}
+
+	exposedPorts, bindings, err := portmap.ParsePortSpecs(ss)
+	if err != nil {
+		return err
+	}
+
+	p.Exposed = exposedPorts
+	p.Bindings = bindings
+
+	return nil
+
+}
 
 type config struct {
 	Global struct {
@@ -48,20 +75,37 @@ type moduleConfig struct {
 }
 
 type httpConfig struct {
-	Verify                *bool                  `yaml:"verify"`                   // no default
-	TLSInsecureSkipVerify bool                   `yaml:"tls_insecure_skip_verify"` // false
-	TLSCertFile           *string                `yaml:"tls_cert_file"`            // no default
-	TLSKeyFile            *string                `yaml:"tls_key_file"`             // no default
-	TLSCACertFile         *string                `yaml:"tls_ca_cert_file"`         // no default
-	Port                  int                    `yaml:"port"`                     // no default
-	Path                  string                 `yaml:"path"`                     // /metrics
-	Scheme                string                 `yaml:"scheme"`                   // http
-	Address               string                 `yaml:"address"`                  // 127.0.0.1
-	XXX                   map[string]interface{} `yaml:",inline"`
+	Verify                *bool       `yaml:"verify"`                   // no default
+	TLSInsecureSkipVerify bool        `yaml:"tls_insecure_skip_verify"` // false
+	TLSCertFile           *string     `yaml:"tls_cert_file"`            // no default
+	TLSKeyFile            *string     `yaml:"tls_key_file"`             // no default
+	TLSCACertFile         *string     `yaml:"tls_ca_cert_file"`         // no default
+	Port                  int         `yaml:"port"`                     // no default
+	Ports                 portMapping `yaml:"ports"`                    // no default
+
+	Path    string                 `yaml:"path"`    // /metrics
+	Scheme  string                 `yaml:"scheme"`  // http
+	Address string                 `yaml:"address"` // 127.0.0.1
+	XXX     map[string]interface{} `yaml:",inline"`
 
 	tlsConfig  *tls.Config
 	httpClient *http.Client
 	mcfg       *moduleConfig
+}
+
+// todo: temporaryu function so that the regular single port usage continues to work
+func (h *httpConfig) firstHostport() string {
+	if h.Port != 0 {
+		return net.JoinHostPort(h.Address, strconv.Itoa(h.Port))
+	}
+
+	for _, bindings := range h.Ports.Bindings {
+		for _, binding := range bindings {
+			return binding.HostPort
+		}
+	}
+	glog.Fatal("no ports defined")
+	return ""
 }
 
 type execConfig struct {
@@ -120,9 +164,17 @@ func checkModuleConfig(name string, cfg *moduleConfig) error {
 		if len(cfg.HTTP.XXX) != 0 {
 			glog.Fatalf("Unknown http module configuration fields: %v", cfg.HTTP.XXX)
 		}
+		var isPortsSet bool
 
-		if cfg.HTTP.Port == 0 {
-			return fmt.Errorf("module %v must have a non-zero port set", name)
+		if cfg.HTTP.Port != 0 {
+			isPortsSet = true
+		}
+		if len(cfg.HTTP.Ports.Exposed) > 0 {
+			isPortsSet = true
+		}
+
+		if !isPortsSet {
+			return fmt.Errorf("module %v must have a non-zero port or ports set", name)
 		}
 		if cfg.HTTP.Verify == nil {
 			v := true

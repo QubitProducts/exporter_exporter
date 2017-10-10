@@ -20,7 +20,6 @@ import (
 	"net/http"
 	"net/http/httputil"
 	"net/url"
-	"strconv"
 	"strings"
 
 	"golang.org/x/net/context/ctxhttp"
@@ -39,7 +38,7 @@ func (c httpConfig) GatherWithContext(ctx context.Context, r *http.Request) prom
 
 		url := &url.URL{
 			Scheme:   c.Scheme,
-			Host:     net.JoinHostPort(c.Address, strconv.Itoa(c.Port)),
+			Host:     c.firstHostport(),
 			Path:     c.Path,
 			RawQuery: vs.Encode(),
 		}
@@ -99,7 +98,7 @@ func (c httpConfig) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 				r.URL.RawQuery = vs.Encode()
 
 				r.URL.Scheme = c.Scheme
-				r.URL.Host = net.JoinHostPort(c.Address, strconv.Itoa(c.Port))
+				r.URL.Host = c.firstHostport()
 				r.URL.Path = c.Path
 
 			},

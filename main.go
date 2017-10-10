@@ -22,6 +22,7 @@ import (
 	"fmt"
 	"io/ioutil"
 	"log"
+	"net"
 	"net/http"
 	"os"
 	"path"
@@ -29,11 +30,12 @@ import (
 	"strings"
 	"time"
 
-	"golang.org/x/sync/errgroup"
-
+	"github.com/QubitProducts/exporter_exporter/pkg/socks5"
 	"github.com/golang/glog"
 	"github.com/prometheus/client_golang/prometheus"
 	"github.com/prometheus/client_golang/prometheus/promhttp"
+	"github.com/valyala/fasthttp/fasthttputil"
+	"golang.org/x/sync/errgroup"
 )
 
 var (
@@ -48,11 +50,13 @@ var (
 	bearerToken     = flag.String("web.bearer.token", "", "Bearer authentication token.")
 	bearerTokenFile = flag.String("web.bearer.token-file", "", "File containing the Bearer authentication token.")
 
-	certPath = flag.String("web.tls.cert", "cert.pem", "Path to cert")
-	keyPath  = flag.String("web.tls.key", "key.pem", "Path to key")
-	caPath   = flag.String("web.tls.ca", "ca.pem", "Path to CA to auth clients against")
-	verify   = flag.Bool("web.tls.verify", false, "Disable client verification")
-	tlsAddr  = flag.String("web.tls.listen-address", "", "The address to listen on for HTTPS requests.")
+	certPath  = flag.String("web.tls.cert", "cert.pem", "Path to cert")
+	keyPath   = flag.String("web.tls.key", "key.pem", "Path to key")
+	caPath    = flag.String("web.tls.ca", "ca.pem", "Path to CA to auth clients against")
+	verify    = flag.Bool("web.tls.verify", false, "Disable client verification")
+	socksAddr = flag.String("socks.listen-address", "", "The address to listen on for accessing the metrics end points via made up internal host names.")
+	socksTLS  = flag.Bool("socks.tls", true, "Use TLS with the socks proxy")
+	tlsAddr   = flag.String("web.tls.listen-address", "", "The address to listen on for HTTPS requests.")
 
 	tPath = flag.String("web.telemetry-path", "/metrics", "The address to listen on for HTTP requests.")
 	pPath = flag.String("web.proxy-path", "/proxy", "The address to listen on for HTTP requests.")
@@ -226,45 +230,88 @@ cfgDirs:
 
 	if *tlsAddr != "" {
 		eg.Go(func() error {
-			cert, err := tls.LoadX509KeyPair(*certPath, *keyPath)
+			tlsConfig, err := loadTlsConfig(*verify)
 			if err != nil {
-				glog.Fatalf("Could not parse key/cert, " + err.Error())
+				glog.Fatal(err)
 			}
-
-			cabs, err := ioutil.ReadFile(*caPath)
-			if err != nil {
-				glog.Fatalf("Could not open ca file,, " + err.Error())
-			}
-			pool := x509.NewCertPool()
-			ok := pool.AppendCertsFromPEM(cabs)
-			if !ok {
-				glog.Fatalf("Failed loading ca certs")
-			}
-
-			tlsConfig := tls.Config{
-				Certificates: []tls.Certificate{cert},
-				RootCAs:      pool,
-			}
-			tlsConfig.BuildNameToCertificate()
-
-			if *verify {
-				tlsConfig.ClientAuth = tls.RequireAndVerifyClientCert
-				tlsConfig.ClientCAs = pool
-			}
-
 			srvr := http.Server{
 				Addr:      *tlsAddr,
-				TLSConfig: &tlsConfig,
+				TLSConfig: tlsConfig,
 				Handler:   handler,
 			}
 			return srvr.ListenAndServeTLS(*certPath, *keyPath)
 		})
 	}
+	if *socksAddr != "" {
+		if !*socksTLS {
+			glog.Fatal("not implemented: tls is required for operating in socks proxy mode")
+		}
+		sl := fasthttputil.NewInmemoryListener()
 
+		eg.Go(func() error {
+			conf := &socks5.Config{
+				Resolver: Resolver{},
+				Dial: func(ctx context.Context, net_, addr string) (net.Conn, error) {
+					return sl.Dial()
+				},
+			}
+			server, err := socks5.New(conf)
+			if err != nil {
+				panic(err)
+			}
+			return server.ListenAndServe("tcp", *socksAddr)
+		})
+
+		eg.Go(func() error {
+			tlsConfig, err := loadTlsConfig(*verify)
+			if err != nil {
+				glog.Fatal(err)
+			}
+
+			server := http.Server{
+				Addr:      "0.0.0.0:", // todo: find out what is suitable
+				TLSConfig: tlsConfig,
+				Handler:   handler,
+			}
+			return server.ServeTLS(sl, *certPath, *keyPath)
+		})
+	}
 	<-ctx.Done()
 	log.Fatal(ctx.Err())
 }
 
+func loadTlsConfig(verify bool) (*tls.Config, error) {
+	cert, err := tls.LoadX509KeyPair(*certPath, *keyPath)
+	if err != nil {
+		glog.Fatalf("Could not parse key/cert, " + err.Error())
+	}
+
+	cabs, err := ioutil.ReadFile(*caPath)
+	if err != nil {
+		glog.Fatalf("Could not open ca file,, " + err.Error())
+	}
+	pool := x509.NewCertPool()
+	ok := pool.AppendCertsFromPEM(cabs)
+	if !ok {
+		glog.Fatalf("Failed loading ca certs")
+	}
+
+	tlsConfig := tls.Config{
+		Certificates: []tls.Certificate{cert},
+		RootCAs:      pool,
+	}
+	tlsConfig.BuildNameToCertificate()
+
+	if verify {
+		tlsConfig.ClientAuth = tls.RequireAndVerifyClientCert
+		tlsConfig.ClientCAs = pool
+	}
+	return &tlsConfig, nil
+}
+
+func (cfg *config) doProxySocks(w http.ResponseWriter, r *http.Request) {
+
+}
 func (cfg *config) doProxy(w http.ResponseWriter, r *http.Request) {
 	mod, ok := r.URL.Query()["module"]
 	if !ok {
