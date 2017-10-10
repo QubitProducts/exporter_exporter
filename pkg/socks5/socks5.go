@@ -160,6 +160,12 @@ func (s *Server) ServeConn(conn net.Conn) error {
 
 	// Process the client request
 	if err := s.handleRequest(request, conn); err != nil {
+		// TODO: The http server is expected to close the connection after
+		// serving the request so we are ignoring the "connection closed" error
+		// for now. This might not be the best way to handle this situation.
+		if err.Error() == "connection closed" {
+			return nil
+		}
 		err = fmt.Errorf("Failed to handle request: %v", err)
 		s.config.Logger.Printf("[ERR] socks: %v", err)
 		return err
