@@ -10,7 +10,6 @@ SHELL        := /usr/bin/env bash
 GO           := GO15VENDOREXPERIMENT=1 go
 FIRST_GOPATH := $(firstword $(subst :, ,$(GOPATH)))
 PROMU        := $(FIRST_GOPATH)/bin/promu
-PKGS          = $(shell $(GO) list $(shell glide nv))
 FILES         = $(shell find . -name '*.go' | grep -v vendor)
 PREFIX       ?= $(shell pwd)
 BIN_DIR      ?= $(shell pwd)
@@ -57,8 +56,11 @@ vet:
 	$Q echo ">> vetting code"
 	$Q $(GO) vet $(pkgs)
 
+vendor: Gopkg.lock Gopkg.toml
+	dep ensure -v
+
 .PHONY: build
-build: promu
+build: vendor promu
 	$Q echo ">> building binaries"
 	$Q $(PROMU) build --prefix $(PREFIX)
 
