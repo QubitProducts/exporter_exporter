@@ -21,11 +21,11 @@ import (
 	"os"
 	"os/exec"
 
-	"github.com/golang/glog"
 	"github.com/prometheus/client_golang/prometheus"
 	"github.com/prometheus/client_golang/prometheus/promhttp"
 	dto "github.com/prometheus/client_model/go"
 	"github.com/prometheus/common/expfmt"
+	"github.com/prometheus/common/log"
 )
 
 var (
@@ -78,9 +78,7 @@ func (c execConfig) GatherWithContext(ctx context.Context, r *http.Request) prom
 		}
 
 		if err != nil {
-			if glog.V(1) {
-				glog.Infof("Command module %v failed %+v", c.mcfg.name, err)
-			}
+			log.Warnf("Command module %v failed %+v", c.mcfg.name, err)
 			cmdFailsCount.WithLabelValues(c.mcfg.name).Inc()
 			if err == context.DeadlineExceeded {
 				proxyTimeoutCount.WithLabelValues(c.mcfg.name).Inc()

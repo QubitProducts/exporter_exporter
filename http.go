@@ -25,11 +25,11 @@ import (
 
 	"golang.org/x/net/context/ctxhttp"
 
-	"github.com/golang/glog"
 	"github.com/prometheus/client_golang/prometheus"
 	"github.com/prometheus/client_golang/prometheus/promhttp"
 	dto "github.com/prometheus/client_model/go"
 	"github.com/prometheus/common/expfmt"
+	"github.com/prometheus/common/log"
 )
 
 func (c httpConfig) GatherWithContext(ctx context.Context, r *http.Request) prometheus.GathererFunc {
@@ -45,9 +45,7 @@ func (c httpConfig) GatherWithContext(ctx context.Context, r *http.Request) prom
 		}
 		resp, err := ctxhttp.Get(ctx, c.httpClient, url.String())
 		if err != nil {
-			if glog.V(1) {
-				glog.Errorf("http proxy for module %v failed %+v", c.mcfg.name, err)
-			}
+			log.Errorf("http proxy for module %v failed %+v", c.mcfg.name, err)
 			proxyErrorCount.WithLabelValues(c.mcfg.name).Inc()
 			if err == context.DeadlineExceeded {
 				proxyTimeoutCount.WithLabelValues(c.mcfg.name).Inc()
@@ -66,9 +64,7 @@ func (c httpConfig) GatherWithContext(ctx context.Context, r *http.Request) prom
 			}
 			if err != nil {
 				proxyMalformedCount.WithLabelValues(c.mcfg.name).Inc()
-				if glog.V(1) {
-					glog.Errorf("err %+v", err)
-				}
+				log.Errorf("err %+v", err)
 				return nil, err
 			}
 

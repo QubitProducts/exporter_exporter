@@ -23,8 +23,8 @@ import (
 	"net/http"
 	"time"
 
-	"github.com/golang/glog"
 	"github.com/pkg/errors"
+	"github.com/prometheus/common/log"
 
 	yaml "gopkg.in/yaml.v2"
 )
@@ -81,7 +81,7 @@ func readConfig(r io.Reader) (*config, error) {
 	err := yaml.Unmarshal(buf.Bytes(), &cfg)
 
 	if len(cfg.XXX) != 0 {
-		glog.Fatalf("Unkown configuration fields: %v", cfg.XXX)
+		log.Fatalf("Unkown configuration fields: %v", cfg.XXX)
 	}
 
 	for s := range cfg.Modules {
@@ -118,7 +118,7 @@ func checkModuleConfig(name string, cfg *moduleConfig) error {
 	switch cfg.Method {
 	case "http":
 		if len(cfg.HTTP.XXX) != 0 {
-			glog.Fatalf("Unknown http module configuration fields: %v", cfg.HTTP.XXX)
+			log.Fatalf("Unknown http module configuration fields: %v", cfg.HTTP.XXX)
 		}
 
 		if cfg.HTTP.Port == 0 {

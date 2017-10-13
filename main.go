@@ -21,7 +21,6 @@ import (
 	"flag"
 	"fmt"
 	"io/ioutil"
-	"log"
 	"net/http"
 	"os"
 	"path"
@@ -31,9 +30,9 @@ import (
 
 	"golang.org/x/sync/errgroup"
 
-	"github.com/golang/glog"
 	"github.com/prometheus/client_golang/prometheus"
 	"github.com/prometheus/client_golang/prometheus/promhttp"
+	"github.com/prometheus/common/log"
 )
 
 var (
@@ -98,6 +97,7 @@ func init() {
 	prometheus.MustRegister(cmdStartsCount)
 	prometheus.MustRegister(cmdFailsCount)
 	flag.Var(&cfgDirs, "config.dirs", "The path to directories of configuration files, can be specified multiple times.")
+	//log.AddFlags(flag.CommandLine)
 }
 
 func main() {
@@ -113,15 +113,15 @@ func main() {
 	if *cfgFile != "" {
 		r, err := os.Open(*cfgFile)
 		if err != nil {
-			glog.Fatalf("%+v", err)
+			log.Fatalf("%+v", err)
 		}
 		cfg, err = readConfig(r)
 		if err != nil {
-			glog.Fatalf("%+v", err)
+			log.Fatalf("%+v", err)
 		}
 		_ = r.Close()
 		for mn, _ := range cfg.Modules {
-			glog.Infof("read module config '%s' from: %s", mn, *cfgFile)
+			log.Debugf("read module config '%s' from: %s", mn, *cfgFile)
 		}
 	}
 
@@ -130,10 +130,10 @@ cfgDirs:
 		mfs, err := ioutil.ReadDir(cfgDir)
 		if err != nil {
 			if *skipDirs && os.IsNotExist(err) {
-				glog.Warningf("skipping non existent config.dirs entry '%s'", cfgDir)
+				log.Warnf("skipping non existent config.dirs entry '%s'", cfgDir)
 				continue cfgDirs
 			}
-			glog.Fatalf("failed reading directory: %s, %v", cfgDir, err)
+			log.Fatalf("failed reading directory: %s, %v", cfgDir, err)
 		}
 
 		yamlSuffixes := map[string]bool{
@@ -143,28 +143,28 @@ cfgDirs:
 		for _, mf := range mfs {
 			fullpath := filepath.Join(cfgDir, mf.Name())
 			if mf.IsDir() || !yamlSuffixes[filepath.Ext(mf.Name())] {
-				glog.Warningf("skipping non-yaml file %v", fullpath)
+				log.Warnf("skipping non-yaml file %v", fullpath)
 				continue
 			}
 			mn := strings.TrimSuffix(mf.Name(), filepath.Ext(mf.Name()))
 			if _, ok := cfg.Modules[mn]; ok {
-				glog.Fatalf("module %s is already defined", mn)
+				log.Fatalf("module %s is already defined", mn)
 			}
 			r, err := os.Open(fullpath)
 			if err != nil {
-				glog.Fatalf("failed to open config file: %s: %v", fullpath, err)
+				log.Fatalf("failed to open config file: %s: %v", fullpath, err)
 			}
 			mcfg, err := readModuleConfig(mn, r)
 			_ = r.Close()
 			if err != nil {
-				glog.Fatalf("failed reading configs %s, %s", fullpath, err)
+				log.Fatalf("failed reading configs %s, %s", fullpath, err)
 			}
-			glog.Infof("read module config '%s' from: %s", mn, fullpath)
+			log.Debugf("read module config '%s' from: %s", mn, fullpath)
 			cfg.Modules[mn] = mcfg
 		}
 	}
 	if len(cfg.Modules) == 0 {
-		glog.Errorln("no modules loaded from any config file")
+		log.Errorln("no modules loaded from any config file")
 	}
 
 	var bToken string
@@ -173,23 +173,23 @@ cfgDirs:
 	}
 	if *bearerTokenFile != "" {
 		if bToken != "" {
-			glog.Fatalln("web.bearer.token and web.bearer.token-file are mutually exclusive options")
+			log.Fatalln("web.bearer.token and web.bearer.token-file are mutually exclusive options")
 		}
 		f, err := os.Open(*bearerTokenFile)
 		if err != nil {
-			glog.Fatalf("error opening bearer.token-file '%s': %v", *bearerTokenFile, err)
+			log.Fatalf("error opening bearer.token-file '%s': %v", *bearerTokenFile, err)
 		}
 		defer f.Close()
 		sc := bufio.NewScanner(f)
 		if !sc.Scan() {
 			if err := sc.Err(); err != nil {
-				glog.Fatalf("error reading first line ot web.bearer.token-file '%s': %v", *bearerTokenFile, err)
+				log.Fatalf("error reading first line ot web.bearer.token-file '%s': %v", *bearerTokenFile, err)
 			}
-			glog.Fatalf("error reading token from first line of web.bearer.token-file '%s'", *bearerTokenFile)
+			log.Fatalf("error reading token from first line of web.bearer.token-file '%s'", *bearerTokenFile)
 		}
 		t := strings.TrimSpace(sc.Text())
 		if t == "" {
-			glog.Fatalf("first line of bearer.token-file must contain the token '%s'", *bearerTokenFile)
+			log.Fatalf("first line of bearer.token-file must contain the token '%s'", *bearerTokenFile)
 		}
 		_ = f.Close()
 		bToken = t
@@ -198,7 +198,7 @@ cfgDirs:
 	proxyPath := path.Clean("/" + *pPath)
 	telePath := path.Clean("/" + *tPath)
 	if proxyPath == telePath {
-		glog.Fatalf("flags -web.proxy-path and -web.telemetry-path can not be set to the same value: %s", proxyPath)
+		log.Fatalf("flags -web.proxy-path and -web.telemetry-path can not be set to the same value: %s", proxyPath)
 	}
 
 	http.HandleFunc(proxyPath, cfg.doProxy)
@@ -214,7 +214,7 @@ cfgDirs:
 	eg, ctx := errgroup.WithContext(context.Background())
 
 	if *addr == "" && *tlsAddr == "" {
-		glog.Info("No web addresses to listen on, nothing to do!")
+		log.Info("No web addresses to listen on, nothing to do!")
 		os.Exit(0)
 	}
 
@@ -228,17 +228,17 @@ cfgDirs:
 		eg.Go(func() error {
 			cert, err := tls.LoadX509KeyPair(*certPath, *keyPath)
 			if err != nil {
-				glog.Fatalf("Could not parse key/cert, " + err.Error())
+				log.Fatalf("Could not parse key/cert, " + err.Error())
 			}
 
 			cabs, err := ioutil.ReadFile(*caPath)
 			if err != nil {
-				glog.Fatalf("Could not open ca file,, " + err.Error())
+				log.Fatalf("Could not open ca file,, " + err.Error())
 			}
 			pool := x509.NewCertPool()
 			ok := pool.AppendCertsFromPEM(cabs)
 			if !ok {
-				glog.Fatalf("Failed loading ca certs")
+				log.Fatalf("Failed loading ca certs")
 			}
 
 			tlsConfig := tls.Config{
@@ -268,23 +268,17 @@ cfgDirs:
 func (cfg *config) doProxy(w http.ResponseWriter, r *http.Request) {
 	mod, ok := r.URL.Query()["module"]
 	if !ok {
-		if glog.V(1) {
-			glog.Infof("no module given")
-		}
+		log.Errorf("no module given")
 		http.Error(w, fmt.Sprintf("require parameter module is missing%v\n", mod), http.StatusBadRequest)
 		return
 	}
 
-	if glog.V(3) {
-		glog.Infof("running module %v\n", mod)
-	}
+	log.Debugf("running module %v\n", mod)
 
 	var h http.Handler
 	if m, ok := cfg.Modules[mod[0]]; !ok {
 		proxyErrorCount.WithLabelValues("unknown").Inc()
-		if glog.V(1) {
-			glog.Infof("unknown module requested  %v\n", mod)
-		}
+		log.Warnf("unknown module requested  %v\n", mod)
 		http.Error(w, fmt.Sprintf("unknown module %v\n", mod), http.StatusNotFound)
 		return
 	} else {
@@ -304,9 +298,7 @@ func (m moduleConfig) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	nr := r
 	cancel := func() {}
 	if m.Timeout != 0 {
-		if glog.V(3) {
-			glog.Infof("setting module %v timeout to %v", m.name, m.Timeout)
-		}
+		log.Debugf("setting module %v timeout to %v", m.name, m.Timeout)
 
 		var ctx context.Context
 		ctx, cancel = context.WithTimeout(r.Context(), m.Timeout)
@@ -322,9 +314,7 @@ func (m moduleConfig) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		m.HTTP.mcfg = &m
 		m.HTTP.ServeHTTP(w, nr)
 	default:
-		if glog.V(1) {
-			glog.Errorf("unknown module method  %v\n", m.Method)
-		}
+		log.Errorf("unknown module method  %v\n", m.Method)
 		proxyErrorCount.WithLabelValues(m.name).Inc()
 		http.Error(w, fmt.Sprintf("unknown module method %v\n", m.Method), http.StatusNotFound)
 		return
