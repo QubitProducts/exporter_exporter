@@ -13,14 +13,14 @@ The advantages are:
 - Provides verification that the target is serving prometheus metrics.
 - Can be used to execute scripts that produce prometheus metrics.
 - _up_ behaviour is the same as for querying individual collectors.
-- Small code size, minimcal external depedencies, easily auditable
+- Small code size, minimal external depedencies, easily auditable.
 
 The exporter has two endpoints.
 
-- /proxy: which takes the following parameters
-  - module: the name of the module from the configuration to execute
-  - args (optional): arguments to pass to the module
-  - params (optional): named parameter to pass to the module (either as CLI args, or http parameters)
+- /proxy: which takes the following parameters:
+  - module: the name of the module from the configuration to execute.
+  - args (optional): arguments to pass to the module.
+  - params (optional): named parameter to pass to the module (either as CLI args, or http parameters).
 - /metrics: this exposes the metrics for the collector itself.
 
 Features that will NOT be included:
