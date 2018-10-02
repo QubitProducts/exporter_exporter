@@ -59,7 +59,7 @@ var (
 	proxyDuration = prometheus.NewSummaryVec(
 		prometheus.SummaryOpts{
 			Name: "expexp_proxy_duration_seconds",
-			Help: "Duration of queries to the yahoo API",
+			Help: "Duration of proxying requests to configured exporters",
 		},
 		[]string{"module"},
 	)
