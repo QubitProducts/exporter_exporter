@@ -295,9 +295,9 @@ func (cfg *config) doProxy(w http.ResponseWriter, r *http.Request) {
 }
 
 func (cfg *config) listModules(w http.ResponseWriter, r *http.Request) {
-	log.Debugf("listing modules")
+	log.Debugf("Listing modules")
 	w.Header().Set("Content-Type", "text/html; charset=utf-8")
-	fmt.Fprintf(w, "<ul>")
+	fmt.Fprintf(w, "<h2>Exporters:</h2><ul>")
 	for mod := range cfg.Modules {
 		fmt.Fprintf(w, "<li><a href=\"/proxy?module=%[1]s\">%[1]s</a></li>", mod)
 	}
