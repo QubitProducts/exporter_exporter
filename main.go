@@ -202,6 +202,7 @@ cfgDirs:
 	}
 
 	http.HandleFunc(proxyPath, cfg.doProxy)
+	http.HandleFunc("/", cfg.listModules)
 	http.Handle(telePath, promhttp.Handler())
 
 	var handler http.Handler
@@ -291,6 +292,15 @@ func (cfg *config) doProxy(w http.ResponseWriter, r *http.Request) {
 	}
 
 	h.ServeHTTP(w, r)
+}
+
+func (cfg *config) listModules(w http.ResponseWriter, r *http.Request) {
+	log.Debugf("listing modules")
+	w.Header().Set("Content-Type", "text/html; charset=utf-8")
+	for mod := range cfg.Modules {
+		fmt.Fprintf(w, "<a href=\"/proxy?module=%[1]s\">%[1]s</a><br>", mod)
+	}
+	return
 }
 
 func (m moduleConfig) ServeHTTP(w http.ResponseWriter, r *http.Request) {
