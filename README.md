@@ -109,3 +109,10 @@ scrape_configs:
     static_configs:
       - targets: ['host:9999']
 ```
+
+## Building / releasing
+```
+promu build - builds a binary for your operating system
+promu crossbuild - builds binaries for all supported operating systems
+promu crossbuild tarballs - builds tarballs for all binaries that were build
+```
