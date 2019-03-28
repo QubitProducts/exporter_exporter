@@ -34,15 +34,21 @@ import (
 
 func (c httpConfig) GatherWithContext(ctx context.Context, r *http.Request) prometheus.GathererFunc {
 	return func() ([]*dto.MetricFamily, error) {
-		vs := r.URL.Query()
-		vs["module"] = vs["module"][1:]
+		qvs := r.URL.Query()
+		qvs["module"] = qvs["module"][1:]
 
-		url := &url.URL{
-			Scheme:   c.Scheme,
-			Host:     net.JoinHostPort(c.Address, strconv.Itoa(c.Port)),
-			Path:     c.Path,
-			RawQuery: vs.Encode(),
+		url, err := url.Parse(c.Path)
+		uvs := url.Query()
+		for k, vs := range uvs {
+			for _, v := range vs {
+				qvs.Add(k, v)
+			}
 		}
+
+		url.Host = net.JoinHostPort(c.Address, strconv.Itoa(c.Port))
+		url.Scheme = c.Scheme
+		url.RawQuery = qvs.Encode()
+
 		resp, err := ctxhttp.Get(ctx, c.httpClient, url.String())
 		if err != nil {
 			log.Errorf("http proxy for module %v failed %+v", c.mcfg.name, err)
