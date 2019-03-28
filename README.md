@@ -27,6 +27,11 @@ Features that will NOT be included:
 
 - merging of module outputs into one query (this would break _up_ behaviour)
 
+BUILDING:
+
+The provided Makefile is primarily used for releases. You can build directly
+using a plain ```go get github.com/QubitProducts/exporter_exporter```
+
 TODO:
 
 - Config reload on HUP (or POST, or config file change?)
