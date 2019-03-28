@@ -5,3 +5,5 @@ dist
 .build
 .tarballs
 vendor
+promu
+github-release
