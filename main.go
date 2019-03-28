@@ -20,6 +20,7 @@ import (
 	"crypto/x509"
 	"flag"
 	"fmt"
+	"html/template"
 	"io/ioutil"
 	"net/http"
 	"os"
@@ -297,11 +298,17 @@ func (cfg *config) doProxy(w http.ResponseWriter, r *http.Request) {
 func (cfg *config) listModules(w http.ResponseWriter, r *http.Request) {
 	log.Debugf("Listing modules")
 	w.Header().Set("Content-Type", "text/html; charset=utf-8")
-	fmt.Fprintf(w, "<h2>Exporters:</h2><ul>")
-	for mod := range cfg.Modules {
-		fmt.Fprintf(w, "<li><a href=\"/proxy?module=%[1]s\">%[1]s</a></li>", mod)
+	tmpl, err := template.New("modules").Parse(`
+		<h2>Exporters:</h2>
+			<ul>
+				{{range $name, $cfg := .Modules}}
+					<li><a href="/proxy?module={{$name}}">{{$name}}</a></li>
+				{{end}}
+			</ul>`)
+	if err != nil {
+		log.Error(err)
 	}
-	fmt.Fprintf(w, "</ul>")
+	tmpl.Execute(w, cfg)
 	return
 }
 
