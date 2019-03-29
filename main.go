@@ -241,10 +241,10 @@ cfgDirs:
 				cabs, err := ioutil.ReadFile(*caPath)
 				if err != nil {
 					log.Fatalf("Could not open ca file,, " + err.Error())
-					ok := pool.AppendCertsFromPEM(cabs)
-					if !ok {
-						log.Fatalf("Failed loading ca certs")
-					}
+				}
+				ok := pool.AppendCertsFromPEM(cabs)
+				if !ok {
+					log.Fatalf("Failed loading ca certs")
 				}
 
 				tlsConfig.ClientAuth = tls.RequireAndVerifyClientCert
