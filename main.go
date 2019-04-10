@@ -233,22 +233,23 @@ cfgDirs:
 				log.Fatalf("Could not parse key/cert, " + err.Error())
 			}
 
+			cabs, err := ioutil.ReadFile(*caPath)
+			if err != nil {
+				log.Fatalf("Could not open ca file,, " + err.Error())
+			}
+			pool := x509.NewCertPool()
+			ok := pool.AppendCertsFromPEM(cabs)
+			if !ok {
+				log.Fatalf("Failed loading ca certs")
+			}
+
 			tlsConfig := tls.Config{
 				Certificates: []tls.Certificate{cert},
+				RootCAs:      pool,
 			}
 			tlsConfig.BuildNameToCertificate()
 
 			if *verify {
-				pool := x509.NewCertPool()
-				cabs, err := ioutil.ReadFile(*caPath)
-				if err != nil {
-					log.Fatalf("Could not open ca file,, " + err.Error())
-				}
-				ok := pool.AppendCertsFromPEM(cabs)
-				if !ok {
-					log.Fatalf("Failed loading ca certs")
-				}
-
 				tlsConfig.ClientAuth = tls.RequireAndVerifyClientCert
 				tlsConfig.ClientCAs = pool
 			}
@@ -258,12 +259,7 @@ cfgDirs:
 				TLSConfig: &tlsConfig,
 				Handler:   handler,
 			}
-
-			err = srvr.ListenAndServeTLS(*certPath, *keyPath)
-			if err != nil {
-				log.Fatalf("Failed starting TLS server, %v", err)
-			}
-			return err
+			return srvr.ListenAndServeTLS(*certPath, *keyPath)
 		})
 	}
 
@@ -298,17 +294,17 @@ func (cfg *config) doProxy(w http.ResponseWriter, r *http.Request) {
 func (cfg *config) listModules(w http.ResponseWriter, r *http.Request) {
 	log.Debugf("Listing modules")
 	w.Header().Set("Content-Type", "text/html; charset=utf-8")
-	tmpl, _ := template.New("modules").Parse(`
+	tmpl := template.Must(template.New("modules").Parse(`
 		<h2>Exporters:</h2>
 			<ul>
 				{{range $name, $cfg := .Modules}}
 					<li><a href="/proxy?module={{$name}}">{{$name}}</a></li>
 				{{end}}
-			</ul>`)
+			</ul>`))
 	err := tmpl.Execute(w, cfg)
 	if err != nil {
 		log.Error(err)
-		http.Error(w, fmt.Sprintf("Can't execute the template"), http.StatusInternalServerError)
+		http.Error(w, "Can't execute the template", http.StatusInternalServerError)
 	}
 	return
 }
