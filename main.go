@@ -310,7 +310,6 @@ func (cfg *config) listModules(w http.ResponseWriter, r *http.Request) {
 		log.Error(err)
 		http.Error(w, fmt.Sprintf("Can't execute the template"), http.StatusInternalServerError)
 	}
-	tmpl.Execute(w, cfg)
 	return
 }
 
