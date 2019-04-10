@@ -298,17 +298,18 @@ func (cfg *config) doProxy(w http.ResponseWriter, r *http.Request) {
 func (cfg *config) listModules(w http.ResponseWriter, r *http.Request) {
 	log.Debugf("Listing modules")
 	w.Header().Set("Content-Type", "text/html; charset=utf-8")
-	tmpl, err := template.New("modules").Parse(`
+	tmpl, _ := template.New("modules").Parse(`
 		<h2>Exporters:</h2>
 			<ul>
 				{{range $name, $cfg := .Modules}}
 					<li><a href="/proxy?module={{$name}}">{{$name}}</a></li>
 				{{end}}
 			</ul>`)
+	err := tmpl.Execute(w, cfg)
 	if err != nil {
 		log.Error(err)
+		http.Error(w, fmt.Sprintf("Can't execute the template"), http.StatusInternalServerError)
 	}
-	tmpl.Execute(w, cfg)
 	return
 }
 
