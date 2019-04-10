@@ -15,12 +15,15 @@ The advantages are:
 - _up_ behaviour is the same as for querying individual collectors.
 - Small code size, minimal external depedencies, easily auditable.
 
-The exporter has two endpoints.
+The exporter has three endpoints.
+
+- /: displays a list of all exporters with links to their metrics.
 
 - /proxy: which takes the following parameters:
   - module: the name of the module from the configuration to execute.
   - args (optional): arguments to pass to the module.
   - params (optional): named parameter to pass to the module (either as CLI args, or http parameters).
+
 - /metrics: this exposes the metrics for the collector itself.
 
 Features that will NOT be included:

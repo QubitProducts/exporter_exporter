@@ -20,6 +20,7 @@ import (
 	"crypto/x509"
 	"flag"
 	"fmt"
+	"html/template"
 	"io/ioutil"
 	"net/http"
 	"os"
@@ -59,7 +60,7 @@ var (
 	proxyDuration = prometheus.NewSummaryVec(
 		prometheus.SummaryOpts{
 			Name: "expexp_proxy_duration_seconds",
-			Help: "Duration of queries to the yahoo API",
+			Help: "Duration of proxying requests to configured exporters",
 		},
 		[]string{"module"},
 	)
@@ -202,6 +203,7 @@ cfgDirs:
 	}
 
 	http.HandleFunc(proxyPath, cfg.doProxy)
+	http.HandleFunc("/", cfg.listModules)
 	http.Handle(telePath, promhttp.Handler())
 
 	var handler http.Handler
@@ -246,7 +248,6 @@ cfgDirs:
 				if !ok {
 					log.Fatalf("Failed loading ca certs")
 				}
-
 				tlsConfig.ClientAuth = tls.RequireAndVerifyClientCert
 				tlsConfig.ClientCAs = pool
 			}
@@ -256,7 +257,6 @@ cfgDirs:
 				TLSConfig: &tlsConfig,
 				Handler:   handler,
 			}
-
 			err = srvr.ListenAndServeTLS(*certPath, *keyPath)
 			if err != nil {
 				log.Fatalf("Failed starting TLS server, %v", err)
@@ -291,6 +291,24 @@ func (cfg *config) doProxy(w http.ResponseWriter, r *http.Request) {
 	}
 
 	h.ServeHTTP(w, r)
+}
+
+func (cfg *config) listModules(w http.ResponseWriter, r *http.Request) {
+	log.Debugf("Listing modules")
+	w.Header().Set("Content-Type", "text/html; charset=utf-8")
+	tmpl := template.Must(template.New("modules").Parse(`
+		<h2>Exporters:</h2>
+			<ul>
+				{{range $name, $cfg := .Modules}}
+					<li><a href="/proxy?module={{$name}}">{{$name}}</a></li>
+				{{end}}
+			</ul>`))
+	err := tmpl.Execute(w, cfg)
+	if err != nil {
+		log.Error(err)
+		http.Error(w, "Can't execute the template", http.StatusInternalServerError)
+	}
+	return
 }
 
 func (m moduleConfig) ServeHTTP(w http.ResponseWriter, r *http.Request) {
