@@ -233,23 +233,21 @@ cfgDirs:
 				log.Fatalf("Could not parse key/cert, " + err.Error())
 			}
 
-			cabs, err := ioutil.ReadFile(*caPath)
-			if err != nil {
-				log.Fatalf("Could not open ca file,, " + err.Error())
-			}
-			pool := x509.NewCertPool()
-			ok := pool.AppendCertsFromPEM(cabs)
-			if !ok {
-				log.Fatalf("Failed loading ca certs")
-			}
-
 			tlsConfig := tls.Config{
 				Certificates: []tls.Certificate{cert},
-				RootCAs:      pool,
 			}
 			tlsConfig.BuildNameToCertificate()
 
 			if *verify {
+				pool := x509.NewCertPool()
+				cabs, err := ioutil.ReadFile(*caPath)
+				if err != nil {
+					log.Fatalf("Could not open ca file,, " + err.Error())
+				}
+				ok := pool.AppendCertsFromPEM(cabs)
+				if !ok {
+					log.Fatalf("Failed loading ca certs")
+				}
 				tlsConfig.ClientAuth = tls.RequireAndVerifyClientCert
 				tlsConfig.ClientCAs = pool
 			}
@@ -259,7 +257,11 @@ cfgDirs:
 				TLSConfig: &tlsConfig,
 				Handler:   handler,
 			}
-			return srvr.ListenAndServeTLS(*certPath, *keyPath)
+			err = srvr.ListenAndServeTLS(*certPath, *keyPath)
+			if err != nil {
+				log.Fatalf("Failed starting TLS server, %v", err)
+			}
+			return err
 		})
 	}
 
