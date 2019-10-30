@@ -1,5 +1,6 @@
 GITHUB_ORG  = QubitProducts
 GITHUB_REPO = exporter_exporter
+VERSION      = 0.3.0
 
 DOCKER_REGISTRY     = qubitproducts
 DOCKER_NAME         = exporter_exporter
@@ -12,11 +13,10 @@ FIRST_GOPATH := $(firstword $(subst :, ,$(GOPATH)))
 FILES         = $(shell find . -name '*.go' | grep -v vendor)
 PREFIX       ?= $(shell pwd)
 BIN_DIR      ?= $(shell pwd)
-VERSION      ?= $(shell cat VERSION)
 
 PACKAGE_TARGET     = deb
 PACKAGE_NAME       = expexp
-PACKAGE_VERSION    = $(shell cat VERSION)
+PACKAGE_VERSION    = $(VERSION)
 PACKAGE_REVISION   = 3
 PACKAGE_ARCH       = amd64
 PACKAGE_MAINTAINER = tristan@qubit.com
@@ -52,50 +52,8 @@ vet:
 	echo ">> vetting code"
 	$(GO) vet $(pkgs)
 
-vendor: go.mod go.sum
-	go mod vendor
-
-.PHONY: build
-build: vendor promu
-	echo ">> building binaries"
-	./promu build --prefix $(PREFIX)
-
-.PHONY: tarball
-tarball: promu
-	echo ">> building release tarball"
-	./promu tarball --prefix $(PREFIX) $(BIN_DIR)
-
-.PHONY: promu
-promu:
-	echo ">> fetching promu"
-	GOOS=$(shell uname -s | tr A-Z a-z) \
-	GOARCH=$(subst x86_64,amd64,$(patsubst i%86,386,$(shell uname -m))) \
-	$(GO) build -o promu github.com/prometheus/promu
-
-.PHONY: github-release
-github-release:
-	echo ">> fetching github-release"
-	GOOS=$(shell uname -s | tr A-Z a-z) \
-	GOARCH=$(subst x86_64,amd64,$(patsubst i%86,386,$(shell uname -m))) \
-	$(GO) build -o github-release github.com/aktau/github-release
-
-.PHONY: release
-release: promu github-release package
-	echo ">> crossbuilding binaries"
-	./promu crossbuild
-	echo ">> crossbuilding tarballs"
-	./promu crossbuild tarballs
-	echo ">> creating github release"
-	./github-release release -u $(GITHUB_ORG) -r $(GITHUB_REPO) --tag v$(VERSION) --name v$(VERSION)
-	echo ">> uploading artifacts"
-	./promu release .tarballs
-	echo ">> uploading deb"
-	./github-release upload -u $(GITHUB_ORG) -r $(GITHUB_REPO) --tag v$(VERSION) --name $(PACKAGE_FILE) --file $(PACKAGE_FILE)
-
 .PHONY: prepare-package clean-package package
-prepare-package: clean-package
-	echo ">> crossbuilding binaries"
-	./promu crossbuild -p linux/amd64
+prepare-package: clean-package build/exporter_exporter-$(VERSION).linux-amd64/exporter_exporter
 	mkdir -p dist/usr/local/bin
 	mkdir -p dist/etc/init
 	mkdir -p dist/etc/default
@@ -135,3 +93,55 @@ release-docker: build-docker
 	docker push $(DOCKER_IMAGE)
 	docker tag $(DOCKER_IMAGE) $(DOCKER_IMAGE_LATEST)
 	docker push $(DOCKER_IMAGE_LATEST)
+
+LDFLAGS = -X main.Version=$(VERSION) \
+					-X main.Branch=$(BRANCH) \
+					-X main.Revision=$(REVISION) \
+					-X main.BuildUser=$(BUILDUSER) \
+					-X main.BuildDate=$(BUILDDATE)
+
+build/expoter_exporter-$(VERSION).windows-amd64/exporter_exporter.exe: $(SRCS) version.go
+	GOOS=$* GOARCH=amd64 $(GO) go build \
+	 -ldflags "$(LDFLAGS)" \
+	 -o $@ \
+	 .
+
+build/exporter_exporter-$(VERSION).%-amd64/exporter_exporter: $(SRCS) version.go
+	GOOS=$* GOARCH=amd64 $(GO) build \
+	 -ldflags  "$(LDFLAGS)" \
+	 -o $@ \
+	 .
+
+build/exporter_exporter-$(VERSION).windows-amd64.tar.gz: build/exporter_exporter-$(VERSION).windows-amd64/exporter_exporter.exe
+	cd build && \
+		tar cfzv exporter_exporter-$(VERSION).windows-amd64.tar.gz exporter_exporter-$(VERSION).windows-amd64
+
+build/exporter_exporter-$(VERSION).%-amd64.tar.gz: build/exporter_exporter-$(VERSION).%-amd64/exporter_exporter
+	cd build && \
+		tar cfzv exporter_exporter-$(VERSION).$*-amd64.tar.gz exporter_exporter-$(VERSION).$*-amd64
+
+package-release: build/exporter_exporter-$(VERSION).%-amd64.tar.gz $(PACKAGE_FILE)
+	go run github.com/aktau/github-release upload \
+	  -u $(GITHUB_ORG) \
+	 	-r $(GITHUB_REPO) \
+	 	--tag v$(VERSION) \
+		--name $(PACKAGE_FILE) \
+		--file $(PACKAGE_FILE)
+
+release-%: build/exporter_exporter-$(VERSION).%-amd64.tar.gz $(PACKAGE_FILE)
+	go run github.com/aktau/github-release upload \
+		-u $(GITHUB_USER) \
+		-r $(GITHUB_REPO) \
+		--tag v$(VERSION) \
+		--name exporter_exporter-$(VERSION).$*-amd64.tar.gz \
+		-f ./build/exporter_exporter-$(VERSION).$*-amd64.tar.gz
+
+release: 
+	git tag v$(VERSION)
+	git push origin v$(VERSION)
+	go run github.com/aktau/github-release release \
+		-u $(GITHUB_USER) \
+		-r $(GITHUB_REPO) \
+		--tag v$(VERSION) \
+		--name v$(VERSION)
+	make release-darwin release-linux release-windows package-release
