@@ -18,6 +18,7 @@ import (
 	"context"
 	"crypto/tls"
 	"crypto/x509"
+	"encoding/json"
 	"flag"
 	"fmt"
 	"html/template"
@@ -294,19 +295,31 @@ func (cfg *config) doProxy(w http.ResponseWriter, r *http.Request) {
 }
 
 func (cfg *config) listModules(w http.ResponseWriter, r *http.Request) {
-	log.Debugf("Listing modules")
-	w.Header().Set("Content-Type", "text/html; charset=utf-8")
-	tmpl := template.Must(template.New("modules").Parse(`
-		<h2>Exporters:</h2>
-			<ul>
-				{{range $name, $cfg := .Modules}}
-					<li><a href="/proxy?module={{$name}}">{{$name}}</a></li>
-				{{end}}
-			</ul>`))
-	err := tmpl.Execute(w, cfg)
-	if err != nil {
-		log.Error(err)
-		http.Error(w, "Can't execute the template", http.StatusInternalServerError)
+	switch r.Header.Get("Accept") {
+	case "application/json":
+		log.Debugf("Listing modules in json")
+		moduleJson, err := json.Marshal(cfg.Modules)
+		if err != nil {
+			log.Error(err)
+			http.Error(w, "Failed to produce JSON", http.StatusInternalServerError)
+		}
+		w.Header().Set("Content-Type", "application/json")
+		w.Write(moduleJson)
+	default:
+		log.Debugf("Listing modules in html")
+		w.Header().Set("Content-Type", "text/html; charset=utf-8")
+		tmpl := template.Must(template.New("modules").Parse(`
+			<h2>Exporters:</h2>
+				<ul>
+					{{range $name, $cfg := .Modules}}
+						<li><a href="/proxy?module={{$name}}">{{$name}}</a></li>
+					{{end}}
+				</ul>`))
+		err := tmpl.Execute(w, cfg)
+		if err != nil {
+			log.Error(err)
+			http.Error(w, "Can't execute the template", http.StatusInternalServerError)
+		}
 	}
 	return
 }

@@ -18,6 +18,7 @@ The advantages are:
 The exporter has three endpoints.
 
 - /: displays a list of all exporters with links to their metrics.
+  - Returns JSON if the header "Accept: application/json" is passed
 
 - /proxy: which takes the following parameters:
   - module: the name of the module from the configuration to execute.
