@@ -109,6 +109,11 @@ prepare-package: clean-package
 clean-package:
 	rm -rf dist
 
+.PHONY: AUTHORS
+AUTHORS:
+	# There's only so much credit I need.
+	git log --format='%aN <%aE>' | grep -v Tristan\ Colgate\  | sort -u > AUTHORS
+
 package: prepare-package
 	cd dist && \
 	  fpm \
