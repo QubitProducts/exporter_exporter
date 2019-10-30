@@ -302,6 +302,7 @@ func (cfg *config) listModules(w http.ResponseWriter, r *http.Request) {
 		if err != nil {
 			log.Error(err)
 			http.Error(w, "Failed to produce JSON", http.StatusInternalServerError)
+			return
 		}
 		w.Header().Set("Content-Type", "application/json")
 		w.Write(moduleJson)
