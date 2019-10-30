@@ -15,6 +15,7 @@ package main
 
 import (
 	"context"
+	"fmt"
 	"io"
 	"net"
 	"net/http"
@@ -59,6 +60,11 @@ func (c httpConfig) GatherWithContext(ctx context.Context, r *http.Request) prom
 			return nil, err
 		}
 		defer resp.Body.Close()
+
+		if resp.StatusCode != 200 {
+			return nil, fmt.Errorf("server responded %v, %q", resp.StatusCode, resp.Status)
+		}
+
 		dec := expfmt.NewDecoder(resp.Body, expfmt.ResponseFormat(resp.Header))
 
 		result := []*dto.MetricFamily{}
@@ -103,7 +109,6 @@ func (c httpConfig) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 				r.URL.Scheme = c.Scheme
 				r.URL.Host = net.JoinHostPort(c.Address, strconv.Itoa(c.Port))
 				r.URL.Path = c.Path
-
 			},
 		}
 	} else {
