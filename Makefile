@@ -72,7 +72,7 @@ AUTHORS:
 	# There's only so much credit I need.
 	git log --format='%aN <%aE>' | grep -v Tristan\ Colgate\  | sort -u > AUTHORS
 
-package: prepare-package
+$(PACKAGE_FILE): prepare-package
 	cd dist && \
 	  fpm \
 	  -t $(PACKAGE_TARGET) \
@@ -100,27 +100,30 @@ LDFLAGS = -X main.Version=$(VERSION) \
 					-X main.BuildUser=$(BUILDUSER) \
 					-X main.BuildDate=$(BUILDDATE)
 
-build/expoter_exporter-$(VERSION).windows-amd64/exporter_exporter.exe: $(SRCS) version.go
-	GOOS=$* GOARCH=amd64 $(GO) go build \
+
+build/expoter_exporter-$(VERSION).windows-amd64/exporter_exporter.exe: $(SRCS)
+	GOOS=$* GOARCH=amd64 $(GO) build \
 	 -ldflags "$(LDFLAGS)" \
 	 -o $@ \
 	 .
+build/exporter_exporter-$(VERSION).windows-amd64.zip: build/expoter_exporter-$(VERSION).windows-amd64/exporter_exporter.exe
+	zip $@ $<
 
-build/exporter_exporter-$(VERSION).%-amd64/exporter_exporter: $(SRCS) version.go
+build/exporter_exporter-$(VERSION).%-amd64/exporter_exporter: $(SRCS)
 	GOOS=$* GOARCH=amd64 $(GO) build \
 	 -ldflags  "$(LDFLAGS)" \
 	 -o $@ \
 	 .
 
-build/exporter_exporter-$(VERSION).windows-amd64.tar.gz: build/exporter_exporter-$(VERSION).windows-amd64/exporter_exporter.exe
-	cd build && \
-		tar cfzv exporter_exporter-$(VERSION).windows-amd64.tar.gz exporter_exporter-$(VERSION).windows-amd64
 
 build/exporter_exporter-$(VERSION).%-amd64.tar.gz: build/exporter_exporter-$(VERSION).%-amd64/exporter_exporter
 	cd build && \
 		tar cfzv exporter_exporter-$(VERSION).$*-amd64.tar.gz exporter_exporter-$(VERSION).$*-amd64
 
-package-release: build/exporter_exporter-$(VERSION).%-amd64.tar.gz $(PACKAGE_FILE)
+
+package: $(PACKAGE_FILE)
+
+package-release: $(PACKAGE_FILE)
 	go run github.com/aktau/github-release upload \
 	  -u $(GITHUB_ORG) \
 	 	-r $(GITHUB_REPO) \
@@ -128,9 +131,17 @@ package-release: build/exporter_exporter-$(VERSION).%-amd64.tar.gz $(PACKAGE_FIL
 		--name $(PACKAGE_FILE) \
 		--file $(PACKAGE_FILE)
 
-release-%: build/exporter_exporter-$(VERSION).%-amd64.tar.gz $(PACKAGE_FILE)
+release-windows: build/exporter_exporter-$(VERSION).windows-amd64.zip
 	go run github.com/aktau/github-release upload \
-		-u $(GITHUB_USER) \
+		-u $(GITHUB_ORG) \
+		-r $(GITHUB_REPO) \
+		--tag v$(VERSION) \
+		--name exporter_exporter-$(VERSION).windows-amd64.zip \
+		-f ./build/exporter_exporter-$(VERSION).windows-amd64.zip
+
+release-%: build/exporter_exporter-$(VERSION).%-amd64.tar.gz
+	go run github.com/aktau/github-release upload \
+		-u $(GITHUB_ORG) \
 		-r $(GITHUB_REPO) \
 		--tag v$(VERSION) \
 		--name exporter_exporter-$(VERSION).$*-amd64.tar.gz \
@@ -140,7 +151,7 @@ release:
 	git tag v$(VERSION)
 	git push origin v$(VERSION)
 	go run github.com/aktau/github-release release \
-		-u $(GITHUB_USER) \
+		-u $(GITHUB_ORG) \
 		-r $(GITHUB_REPO) \
 		--tag v$(VERSION) \
 		--name v$(VERSION)
