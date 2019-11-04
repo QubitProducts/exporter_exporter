@@ -146,3 +146,42 @@ func (b BearerAuthMiddleware) ServeHTTP(w http.ResponseWriter, r *http.Request) 
 	}
 	b.Handler.ServeHTTP(w, r)
 }
+
+type IPAddressAuthMiddleware struct {
+	http.Handler
+	ACL []net.IPNet
+}
+
+func (m IPAddressAuthMiddleware) ServeHTTP(w http.ResponseWriter, r *http.Request) {
+	host, _, err := net.SplitHostPort(r.RemoteAddr)
+	if err != nil {
+		log.Errorf("Failed to parse host form remote address '%s'", r.RemoteAddr)
+		w.WriteHeader(http.StatusInternalServerError)
+		_, _ = w.Write([]byte("Failed to determine client IP address"))
+		return
+	}
+
+	addr := net.ParseIP(host)
+	if addr == nil {
+		log.Errorf(
+			"Failed to determine client IP address from '%s' (originally '%s')",
+			host, r.RemoteAddr,
+		)
+		w.WriteHeader(http.StatusInternalServerError)
+		_, _ = w.Write([]byte("Failed to determine client IP address"))
+		return
+	}
+
+	for _, network := range m.ACL {
+		// client is in access list
+		if network.Contains(addr) {
+			m.Handler.ServeHTTP(w, r)
+			return
+		}
+	}
+
+	// client is not in access list
+	log.Infof("Access forbidden for %q", addr)
+	w.WriteHeader(http.StatusForbidden)
+	_, _ = w.Write([]byte("Forbidden"))
+}
