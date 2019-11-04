@@ -23,6 +23,7 @@ import (
 	"fmt"
 	"html/template"
 	"io/ioutil"
+	"net"
 	"net/http"
 	"os"
 	"path"
@@ -48,6 +49,8 @@ var (
 
 	bearerToken     = flag.String("web.bearer.token", "", "Bearer authentication token.")
 	bearerTokenFile = flag.String("web.bearer.token-file", "", "File containing the Bearer authentication token.")
+
+	acl IPNetSliceFlag
 
 	certPath = flag.String("web.tls.cert", "cert.pem", "Path to cert")
 	keyPath  = flag.String("web.tls.key", "key.pem", "Path to key")
@@ -99,6 +102,7 @@ func init() {
 	prometheus.MustRegister(cmdStartsCount)
 	prometheus.MustRegister(cmdFailsCount)
 	flag.Var(&cfgDirs, "config.dirs", "The path to directories of configuration files, can be specified multiple times.")
+	flag.Var(&acl, "allow.net", "Allow connection from this network specified in CIDR notation. Can be specified multiple times.")
 	//log.AddFlags(flag.CommandLine)
 }
 
@@ -212,6 +216,10 @@ cfgDirs:
 		handler = http.DefaultServeMux
 	} else {
 		handler = &BearerAuthMiddleware{http.DefaultServeMux, bToken}
+	}
+	if len(acl) > 0 {
+		log.Infof("Allowing connections only from %v", acl)
+		handler = &IPAddressAuthMiddleware{handler, acl}
 	}
 
 	eg, ctx := errgroup.WithContext(context.Background())
@@ -368,5 +376,26 @@ func (s *StringSliceFlag) String() string {
 
 func (s *StringSliceFlag) Set(value string) error {
 	*s = append(*s, value)
+	return nil
+}
+
+// IPNetSliceFlag parses IP network in CIDR notation into net.IPNet. Can be set
+// multiple times
+type IPNetSliceFlag []net.IPNet
+
+func (nets IPNetSliceFlag) String() string {
+	netsStr := make([]string, len(nets))
+	for i := range nets {
+		netsStr[i] = fmt.Sprint(nets[i].String())
+	}
+	return strings.Join(netsStr, ", ")
+}
+
+func (nets *IPNetSliceFlag) Set(value string) error {
+	if _, net, err := net.ParseCIDR(value); err != nil {
+		return err
+	} else {
+		*nets = append(*nets, *net)
+	}
 	return nil
 }
