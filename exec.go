@@ -20,6 +20,7 @@ import (
 	"net/http"
 	"os"
 	"os/exec"
+	"sort"
 
 	"github.com/prometheus/client_golang/prometheus"
 	"github.com/prometheus/client_golang/prometheus/promhttp"
@@ -96,6 +97,8 @@ func (c execConfig) GatherWithContext(ctx context.Context, r *http.Request) prom
 		for _, mf := range mfs {
 			result = append(result, mf)
 		}
+
+		sort.Slice(result, func(i, j int) bool { return result[i].GetName() < result[j].GetName() })
 		return result, nil
 	}
 }

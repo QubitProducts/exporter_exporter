@@ -21,6 +21,7 @@ import (
 	"net/http"
 	"net/http/httputil"
 	"net/url"
+	"sort"
 	"strconv"
 	"strings"
 
@@ -83,6 +84,7 @@ func (c httpConfig) GatherWithContext(ctx context.Context, r *http.Request) prom
 			result = append(result, &mf)
 		}
 
+		sort.Slice(result, func(i, j int) bool { return result[i].GetName() < result[j].GetName() })
 		return result, nil
 	}
 }
