@@ -110,3 +110,25 @@ scrape_configs:
     static_configs:
       - targets: ['host:9999']
 ```
+
+## Directory-based configuration
+
+You can also specify `-config.dirs` to break the configuration into separate
+files.  The module name is taken from the name of the file (minus the
+yml/yaml extension), and the configuration for that module goes in at the
+top level.
+
+```
+==> expexp.yaml <==
+modules: {}
+
+==> expexp.d/node.yaml <==
+method: http
+http:
+   port: 9100
+
+==> expexp.d/mtail.yaml <==
+method: http
+http:
+   port: 3903
+```
