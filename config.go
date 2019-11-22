@@ -81,7 +81,7 @@ func readConfig(r io.Reader) (*config, error) {
 	err := yaml.Unmarshal(buf.Bytes(), &cfg)
 
 	if len(cfg.XXX) != 0 {
-		log.Fatalf("Unkown configuration fields: %v", cfg.XXX)
+		log.Fatalf("Unknown configuration fields: %v", cfg.XXX)
 	}
 
 	for s := range cfg.Modules {
@@ -112,7 +112,7 @@ func readModuleConfig(name string, r io.Reader) (*moduleConfig, error) {
 
 func checkModuleConfig(name string, cfg *moduleConfig) error {
 	if len(cfg.XXX) != 0 {
-		return fmt.Errorf("Unkown module configuration fields: %v", cfg.XXX)
+		return fmt.Errorf("Unknown module configuration fields: %v", cfg.XXX)
 	}
 
 	switch cfg.Method {
