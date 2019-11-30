@@ -231,7 +231,11 @@ cfgDirs:
 
 	if *addr != "" {
 		eg.Go(func() error {
-			return http.ListenAndServe(*addr, handler)
+			err := http.ListenAndServe(*addr, handler)
+			if err != nil {
+				log.Fatalf("Failed starting HTTP server, %v", err)
+			}
+			return err
 		})
 	}
 
@@ -251,7 +255,7 @@ cfgDirs:
 				pool := x509.NewCertPool()
 				cabs, err := ioutil.ReadFile(*caPath)
 				if err != nil {
-					log.Fatalf("Could not open ca file,, " + err.Error())
+					log.Fatalf("Could not open ca file, " + err.Error())
 				}
 				ok := pool.AppendCertsFromPEM(cabs)
 				if !ok {
