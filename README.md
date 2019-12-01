@@ -132,3 +132,91 @@ method: http
 http:
    port: 3903
 ```
+
+## TLS configuration
+
+You can use exporter_exporter with TLS to encrypt the traffic, and at the
+same time enforce strong mutual authentication between the nodes and the
+prometheus server.
+
+Note that `-web.tls.verify` will accept *any* certificate signed by the
+`-web.tls.ca`, so you need to create a separate CA for this purpose - or use
+a self-signed certificate, which acts as its own CA.
+
+Here is a simple configuration example, using one key/cert for the
+prometheus server and one key/cert shared between all the remote nodes.
+Firstly, create the keys and certs:
+
+```
+openssl req -x509 -newkey rsa:1024 -keyout prom_node_key.pem -out prom_node_cert.pem -days 29220 -nodes -subj /commonName=prom_node/
+openssl req -x509 -newkey rsa:1024 -keyout prometheus_key.pem -out prometheus_cert.pem -days 29220 -nodes -subj /commonName=prometheus/
+```
+
+Create an `/etc/prometheus/ssl/` directory on the prometheus server and all
+the remote nodes.  Install both cert.pem files everywhere.  It is safe for
+them to be world-readable.
+
+Install `prom_node_key.pem` only on the nodes, and set file permissions to
+protect it so that only exporter_exporter can read it.  Similarly, install
+`prometheus_key.pem` only on the prometheus server, and set permissions so
+that only the prometheus process can read it.
+
+Configuration for exporter_exporter on the nodes (here it also disables
+plain HTTP):
+
+```
+EXPEXP_FLAGS='-web.listen-address= -web.tls.listen-address=:9998
+ -web.tls.cert=/etc/prometheus/ssl/prom_node_cert.pem
+ -web.tls.key=/etc/prometheus/ssl/prom_node_key.pem
+ -web.tls.ca=/etc/prometheus/ssl/prometheus_cert.pem
+ -web.tls.verify'
+```
+
+To test, use `curl` to make a scrape, replacing x.x.x.x with the IP address
+of the target:
+
+```
+curl --cert /etc/prometheus/ssl/prometheus_cert.pem \
+     --key /etc/prometheus/ssl/prometheus_key.pem \
+     --cacert /etc/prometheus/ssl/prom_node_cert.pem \
+     --resolve prom_node:9998:x.x.x.x \
+     -v https://prom_node:9998/proxy?module=node
+```
+
+When this is working, configure your prometheus server to use https. Example:
+
+```
+  - job_name: node
+    scrape_interval: 1m
+    scrape_timeout: 50s
+    file_sd_configs:
+      - files:
+        - /etc/prometheus/targets.d/node_targets.yml
+    scheme: https
+    tls_config:
+      # Verifying remote identity
+      ca_file: /etc/prometheus/ssl/prom_node_cert.pem
+      server_name: prom_node
+      # Asserting our identity
+      cert_file: /etc/prometheus/ssl/prometheus_cert.pem
+      key_file: /etc/prometheus/ssl/prometheus_key.pem
+    metrics_path: /proxy
+    params:
+      module: [ node ]
+    relabel_configs:
+      - source_labels: [__address__]
+        target_label: instance
+      - source_labels: [__address__]
+        regex: '[^:]+'
+        target_label: __address__
+        replacement: '${1}:9998'
+```
+
+Example `/etc/prometheus/targets.d/node_targets.yml`:
+
+```
+- labels: []
+  targets:
+  - 192.0.2.1
+  - 192.0.2.2
+```
