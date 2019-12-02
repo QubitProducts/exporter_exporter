@@ -23,9 +23,6 @@ import (
 	"net/http"
 	"time"
 
-	"github.com/pkg/errors"
-	"github.com/prometheus/common/log"
-
 	yaml "gopkg.in/yaml.v2"
 )
 
@@ -34,6 +31,10 @@ type config struct {
 	}
 	Modules map[string]*moduleConfig
 	XXX     map[string]interface{} `yaml:",inline"`
+
+	bearerToken   string
+	proxyPath     string
+	telemetryPath string
 }
 
 type moduleConfig struct {
@@ -81,12 +82,12 @@ func readConfig(r io.Reader) (*config, error) {
 	err := yaml.Unmarshal(buf.Bytes(), &cfg)
 
 	if len(cfg.XXX) != 0 {
-		log.Fatalf("Unknown configuration fields: %v", cfg.XXX)
+		return nil, fmt.Errorf("Unknown configuration fields: %v", cfg.XXX)
 	}
 
 	for s := range cfg.Modules {
 		if err := checkModuleConfig(s, cfg.Modules[s]); err != nil {
-			return nil, err
+			return nil, fmt.Errorf("bad config for module %s, %w", s, err)
 		}
 	}
 
@@ -112,13 +113,13 @@ func readModuleConfig(name string, r io.Reader) (*moduleConfig, error) {
 
 func checkModuleConfig(name string, cfg *moduleConfig) error {
 	if len(cfg.XXX) != 0 {
-		return fmt.Errorf("Unknown module configuration fields: %v", cfg.XXX)
+		return fmt.Errorf("unknown module configuration fields: %v", cfg.XXX)
 	}
 
 	switch cfg.Method {
 	case "http":
 		if len(cfg.HTTP.XXX) != 0 {
-			log.Fatalf("Unknown http module configuration fields: %v", cfg.HTTP.XXX)
+			return fmt.Errorf("Unknown http module configuration fields: %v", cfg.HTTP.XXX)
 		}
 
 		if cfg.HTTP.Port == 0 {
@@ -140,7 +141,7 @@ func checkModuleConfig(name string, cfg *moduleConfig) error {
 
 		tlsConfig, err := cfg.HTTP.getTLSConfig()
 		if err != nil {
-			return errors.Wrap(err, "could not create tls config")
+			return fmt.Errorf("could not create tls config, %w", err)
 		}
 		cfg.HTTP.tlsConfig = tlsConfig
 		cfg.HTTP.httpClient = &http.Client{
@@ -166,7 +167,7 @@ func (c httpConfig) getTLSConfig() (*tls.Config, error) {
 	if c.TLSCACertFile != nil {
 		caCert, err := ioutil.ReadFile(*c.TLSCACertFile)
 		if err != nil {
-			return nil, errors.Wrapf(err, "could not read ca from %v", c.TLSCACertFile)
+			return nil, fmt.Errorf("could not read ca from %v, %w", *c.TLSCACertFile, err)
 		}
 
 		config.ClientCAs = x509.NewCertPool()
@@ -175,7 +176,7 @@ func (c httpConfig) getTLSConfig() (*tls.Config, error) {
 	if c.TLSCertFile != nil && c.TLSKeyFile != nil {
 		cert, err := tls.LoadX509KeyPair(*c.TLSCertFile, *c.TLSKeyFile)
 		if err != nil {
-			return nil, errors.Wrapf(err, "could not read keypair from %v, %v", c.TLSCertFile, c.TLSKeyFile)
+			return nil, fmt.Errorf("failed reading TLS credentials, %w", err)
 		}
 		config.Certificates = []tls.Certificate{cert}
 	}

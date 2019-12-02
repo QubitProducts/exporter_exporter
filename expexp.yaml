@@ -3,6 +3,7 @@ modules:
     method: http
     http:
        port: 9100
+       tls_ca_cert_file: nofile
 
   mtail:
     method: http

@@ -14,11 +14,11 @@
 package main
 
 import (
-	"bufio"
 	"context"
 	"crypto/tls"
 	"crypto/x509"
 	"encoding/json"
+	"errors"
 	"flag"
 	"fmt"
 	"html/template"
@@ -101,17 +101,12 @@ func init() {
 	prometheus.MustRegister(proxyMalformedCount)
 	prometheus.MustRegister(cmdStartsCount)
 	prometheus.MustRegister(cmdFailsCount)
+
 	flag.Var(&cfgDirs, "config.dirs", "The path to directories of configuration files, can be specified multiple times.")
 	flag.Var(&acl, "allow.net", "Allow connection from this network specified in CIDR notation. Can be specified multiple times.")
-	//log.AddFlags(flag.CommandLine)
 }
 
-func main() {
-	flag.Parse()
-	if *printVersion {
-		fmt.Fprintf(os.Stderr, "Version: %s\n", versionStr())
-		os.Exit(0)
-	}
+func setup() (*config, error) {
 	cfg := &config{
 		Modules: make(map[string]*moduleConfig),
 		XXX:     make(map[string]interface{}),
@@ -119,13 +114,14 @@ func main() {
 	if *cfgFile != "" {
 		r, err := os.Open(*cfgFile)
 		if err != nil {
-			log.Fatalf("%+v", err)
+			return nil, err
 		}
+		defer r.Close()
+
 		cfg, err = readConfig(r)
 		if err != nil {
-			log.Fatalf("%+v", err)
+			return nil, err
 		}
-		_ = r.Close()
 		for mn, _ := range cfg.Modules {
 			log.Debugf("read module config '%s' from: %s", mn, *cfgFile)
 		}
@@ -139,7 +135,7 @@ cfgDirs:
 				log.Warnf("skipping non existent config.dirs entry '%s'", cfgDir)
 				continue cfgDirs
 			}
-			log.Fatalf("failed reading directory: %s, %v", cfgDir, err)
+			return nil, fmt.Errorf("failed reading directory: %s, %v", cfgDir, err)
 		}
 
 		yamlSuffixes := map[string]bool{
@@ -152,19 +148,22 @@ cfgDirs:
 				log.Warnf("skipping non-yaml file %v", fullpath)
 				continue
 			}
+
 			mn := strings.TrimSuffix(mf.Name(), filepath.Ext(mf.Name()))
 			if _, ok := cfg.Modules[mn]; ok {
-				log.Fatalf("module %s is already defined", mn)
+				return nil, fmt.Errorf("module %s is already defined", mn)
 			}
 			r, err := os.Open(fullpath)
 			if err != nil {
-				log.Fatalf("failed to open config file: %s: %v", fullpath, err)
+				return nil, fmt.Errorf("failed to open config file %s, %w", fullpath, err)
 			}
+			defer r.Close()
+
 			mcfg, err := readModuleConfig(mn, r)
-			_ = r.Close()
 			if err != nil {
-				log.Fatalf("failed reading configs %s, %s", fullpath, err)
+				return nil, fmt.Errorf("failed reading configs %s, %w", fullpath, err)
 			}
+
 			log.Debugf("read module config '%s' from: %s", mn, fullpath)
 			cfg.Modules[mn] = mcfg
 		}
@@ -173,50 +172,141 @@ cfgDirs:
 		log.Errorln("no modules loaded from any config file")
 	}
 
-	var bToken string
 	if *bearerToken != "" {
-		bToken = *bearerToken
+		cfg.bearerToken = *bearerToken
 	}
+
 	if *bearerTokenFile != "" {
-		if bToken != "" {
-			log.Fatalln("web.bearer.token and web.bearer.token-file are mutually exclusive options")
+		if *bearerToken != "" {
+			return nil, errors.New(("web.bearer.token and web.bearer.token-file are mutually exclusive options"))
 		}
-		f, err := os.Open(*bearerTokenFile)
+		bs, err := ioutil.ReadFile(*bearerTokenFile)
 		if err != nil {
-			log.Fatalf("error opening bearer.token-file '%s': %v", *bearerTokenFile, err)
+			return nil, fmt.Errorf("failed reading bearer file %s, %w", *bearerTokenFile, err)
 		}
-		defer f.Close()
-		sc := bufio.NewScanner(f)
-		if !sc.Scan() {
-			if err := sc.Err(); err != nil {
-				log.Fatalf("error reading first line ot web.bearer.token-file '%s': %v", *bearerTokenFile, err)
-			}
-			log.Fatalf("error reading token from first line of web.bearer.token-file '%s'", *bearerTokenFile)
+
+		t := strings.TrimSpace(string(bs))
+		if len(t) == 0 {
+			return nil, errors.New("token file should not be empty")
 		}
-		t := strings.TrimSpace(sc.Text())
-		if t == "" {
-			log.Fatalf("first line of bearer.token-file must contain the token '%s'", *bearerTokenFile)
-		}
-		_ = f.Close()
-		bToken = t
+		cfg.bearerToken = t
 	}
 
-	proxyPath := path.Clean("/" + *pPath)
-	telePath := path.Clean("/" + *tPath)
-	if proxyPath == telePath {
-		log.Fatalf("flags -web.proxy-path and -web.telemetry-path can not be set to the same value: %s", proxyPath)
+	cfg.proxyPath = path.Clean("/" + *pPath)
+	cfg.telemetryPath = path.Clean("/" + *tPath)
+	if cfg.proxyPath == cfg.telemetryPath {
+		return nil, fmt.Errorf("flags -web.proxy-path and -web.telemetry-path can not be set to the same value")
+	}
+	return cfg, nil
+}
+
+func setupTLS() (*tls.Config, error) {
+	var tlsConfig *tls.Config
+	if *tlsAddr == "" {
+		return nil, nil
 	}
 
-	http.HandleFunc(proxyPath, cfg.doProxy)
+	cert, err := tls.LoadX509KeyPair(*certPath, *keyPath)
+	if err != nil {
+		return nil, fmt.Errorf("Could not parse key/cert, %w", err)
+	}
+
+	tlsConfig = &tls.Config{
+		Certificates: []tls.Certificate{cert},
+	}
+	tlsConfig.BuildNameToCertificate()
+
+	if *verify {
+		pool := x509.NewCertPool()
+		cabs, err := ioutil.ReadFile(*caPath)
+		if err != nil {
+			return nil, fmt.Errorf("Could not open ca file, %w", err)
+		}
+		ok := pool.AppendCertsFromPEM(cabs)
+		if !ok {
+			return nil, errors.New("Failed loading ca certs")
+		}
+		tlsConfig.ClientAuth = tls.RequireAndVerifyClientCert
+		tlsConfig.ClientCAs = pool
+	}
+
+	return tlsConfig, nil
+}
+
+func runListener(ctx context.Context, name string, lsnr net.Listener, handler http.Handler) error {
+	srvr := http.Server{
+		Handler: handler,
+	}
+
+	go func() {
+		<-ctx.Done()
+		srvr.Shutdown(context.Background())
+	}()
+
+	if err := srvr.Serve(lsnr); err != nil {
+		return fmt.Errorf("listener %s stopped, %w", name, err)
+	}
+	return nil
+}
+
+func main() {
+	var err error
+	defer func() {
+		if err != nil {
+			log.Errorln(err.Error())
+			os.Exit(1)
+		}
+	}()
+
+	flag.Parse()
+
+	if *printVersion {
+		fmt.Fprintf(os.Stderr, "Version: %s\n", versionStr())
+		return
+	}
+
+	cfg, err := setup()
+	if err != nil {
+		return
+	}
+	tlsConfig, err := setupTLS()
+	if err != nil {
+		return
+	}
+
+	if *addr == "" && *tlsAddr == "" {
+		log.Info("No web addresses to listen on, nothing to do!")
+		os.Exit(0)
+	}
+
+	var lsnr net.Listener
+	if *addr != "" {
+		lsnr, err = net.Listen("tcp", *addr)
+		if err != nil {
+			return
+		}
+	}
+
+	var tlsLsnr net.Listener
+	if *tlsAddr != "" {
+		tlsLsnr, err = net.Listen("tcp", *tlsAddr)
+		if err != nil {
+			return
+		}
+
+		tlsLsnr = tls.NewListener(tlsLsnr, tlsConfig)
+	}
+
+	http.HandleFunc(cfg.proxyPath, cfg.doProxy)
 	http.HandleFunc("/", cfg.listModules)
-	http.Handle(telePath, promhttp.Handler())
+	http.Handle(cfg.telemetryPath, promhttp.Handler())
 
-	var handler http.Handler
-	if bToken == "" {
-		handler = http.DefaultServeMux
-	} else {
-		handler = &BearerAuthMiddleware{http.DefaultServeMux, bToken}
+	handler := http.Handler(http.DefaultServeMux)
+
+	if cfg.bearerToken != "" {
+		handler = &BearerAuthMiddleware{handler, cfg.bearerToken}
 	}
+
 	if len(acl) > 0 {
 		log.Infof("Allowing connections only from %v", acl)
 		handler = &IPAddressAuthMiddleware{handler, acl}
@@ -224,58 +314,19 @@ cfgDirs:
 
 	eg, ctx := errgroup.WithContext(context.Background())
 
-	if *addr == "" && *tlsAddr == "" {
-		log.Info("No web addresses to listen on, nothing to do!")
-		os.Exit(0)
-	}
-
-	if *addr != "" {
+	if lsnr != nil {
 		eg.Go(func() error {
-			return http.ListenAndServe(*addr, handler)
+			return runListener(ctx, "http", lsnr, handler)
 		})
 	}
 
-	if *tlsAddr != "" {
+	if tlsLsnr != nil {
 		eg.Go(func() error {
-			cert, err := tls.LoadX509KeyPair(*certPath, *keyPath)
-			if err != nil {
-				log.Fatalf("Could not parse key/cert, " + err.Error())
-			}
-
-			tlsConfig := tls.Config{
-				Certificates: []tls.Certificate{cert},
-			}
-			tlsConfig.BuildNameToCertificate()
-
-			if *verify {
-				pool := x509.NewCertPool()
-				cabs, err := ioutil.ReadFile(*caPath)
-				if err != nil {
-					log.Fatalf("Could not open ca file,, " + err.Error())
-				}
-				ok := pool.AppendCertsFromPEM(cabs)
-				if !ok {
-					log.Fatalf("Failed loading ca certs")
-				}
-				tlsConfig.ClientAuth = tls.RequireAndVerifyClientCert
-				tlsConfig.ClientCAs = pool
-			}
-
-			srvr := http.Server{
-				Addr:      *tlsAddr,
-				TLSConfig: &tlsConfig,
-				Handler:   handler,
-			}
-			err = srvr.ListenAndServeTLS(*certPath, *keyPath)
-			if err != nil {
-				log.Fatalf("Failed starting TLS server, %v", err)
-			}
-			return err
+			return runListener(ctx, "https", tlsLsnr, handler)
 		})
 	}
 
-	<-ctx.Done()
-	log.Fatal(ctx.Err())
+	err = eg.Wait()
 }
 
 func (cfg *config) doProxy(w http.ResponseWriter, r *http.Request) {
