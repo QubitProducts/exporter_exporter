@@ -31,7 +31,7 @@ Features that will NOT be included:
 
 - merging of module outputs into one query (this would break _up_ behaviour)
 
-INSTALLATION:
+## Installation
 
 You can build directly using a plain ```go get github.com/QubitProducts/exporter_exporter```.
 The provided Makefile is primarily used for releases.
