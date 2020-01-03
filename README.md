@@ -67,6 +67,12 @@ modules:
     method: http
     http:
        port: 4194
+  
+  netdata:
+    method: http
+    http:
+       port: 19999
+       path: '/api/v1/allmetrics?format=prometheus'
 
   somescript:
     method: exec
