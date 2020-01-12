@@ -21,6 +21,7 @@ import (
 	"io"
 	"io/ioutil"
 	"net/http"
+	"net/http/httputil"
 	"time"
 
 	yaml "gopkg.in/yaml.v2"
@@ -60,9 +61,9 @@ type httpConfig struct {
 	Address               string                 `yaml:"address"`                  // 127.0.0.1
 	XXX                   map[string]interface{} `yaml:",inline"`
 
-	tlsConfig  *tls.Config
-	httpClient *http.Client
-	mcfg       *moduleConfig
+	tlsConfig *tls.Config
+	mcfg      *moduleConfig
+	*httputil.ReverseProxy
 }
 
 type execConfig struct {
@@ -116,6 +117,8 @@ func checkModuleConfig(name string, cfg *moduleConfig) error {
 		return fmt.Errorf("unknown module configuration fields: %v", cfg.XXX)
 	}
 
+	cfg.name = name
+
 	switch cfg.Method {
 	case "http":
 		if len(cfg.HTTP.XXX) != 0 {
@@ -144,10 +147,13 @@ func checkModuleConfig(name string, cfg *moduleConfig) error {
 			return fmt.Errorf("could not create tls config, %w", err)
 		}
 		cfg.HTTP.tlsConfig = tlsConfig
-		cfg.HTTP.httpClient = &http.Client{
-			Transport: &http.Transport{
-				TLSClientConfig: tlsConfig,
-			},
+		cfg.HTTP.ReverseProxy = &httputil.ReverseProxy{
+			Transport:    &http.Transport{TLSClientConfig: tlsConfig},
+			Director:     cfg.getReverseProxyDirectorFunc(),
+			ErrorHandler: cfg.getReverseProxyErrorHandlerFunc(),
+		}
+		if *cfg.HTTP.Verify {
+			cfg.HTTP.ReverseProxy.ModifyResponse = cfg.getReverseProxyModifyResponseFunc()
 		}
 	case "exec":
 		if len(cfg.Exec.XXX) != 0 {

@@ -346,7 +346,6 @@ func (cfg *config) doProxy(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, fmt.Sprintf("unknown module %v\n", mod), http.StatusNotFound)
 		return
 	} else {
-		m.name = mod[0]
 		h = m
 	}
 

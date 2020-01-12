@@ -14,60 +14,81 @@
 package main
 
 import (
+	"bytes"
+	"compress/gzip"
 	"context"
-	"fmt"
+	"errors"
 	"io"
+	"io/ioutil"
 	"net"
 	"net/http"
-	"net/http/httputil"
-	"net/url"
 	"strconv"
 	"strings"
 
-	"golang.org/x/net/context/ctxhttp"
-
-	"github.com/prometheus/client_golang/prometheus"
-	"github.com/prometheus/client_golang/prometheus/promhttp"
 	dto "github.com/prometheus/client_model/go"
 	"github.com/prometheus/common/expfmt"
 	log "github.com/sirupsen/logrus"
 )
 
-func (c httpConfig) GatherWithContext(ctx context.Context, r *http.Request) prometheus.GathererFunc {
-	return func() ([]*dto.MetricFamily, error) {
-		qvs := r.URL.Query()
-		qvs["module"] = qvs["module"][1:]
+const (
+	// Msg to send in response body when verification of proxied server
+	// response is failed
+	VerificationErrorMsg = "Internal Server Error: " +
+		"Response from proxied server failed verification. " +
+		"See server logs for details"
+)
 
-		url, err := url.Parse(c.Path)
-		uvs := url.Query()
-		for k, vs := range uvs {
-			for _, v := range vs {
-				qvs.Add(k, v)
-			}
-		}
+type VerifyError struct {
+	msg   string
+	cause error
+}
 
-		url.Host = net.JoinHostPort(c.Address, strconv.Itoa(c.Port))
-		url.Scheme = c.Scheme
-		url.RawQuery = qvs.Encode()
+func (e *VerifyError) Error() string { return e.msg + ": " + e.cause.Error() }
+func (e *VerifyError) Unwrap() error { return e.cause }
 
-		resp, err := ctxhttp.Get(ctx, c.httpClient, url.String())
-		if err != nil {
-			log.Errorf("http proxy for module %v failed %+v", c.mcfg.name, err)
-			proxyErrorCount.WithLabelValues(c.mcfg.name).Inc()
-			if err == context.DeadlineExceeded {
-				proxyTimeoutCount.WithLabelValues(c.mcfg.name).Inc()
-			}
-			return nil, err
-		}
-		defer resp.Body.Close()
+func (cfg moduleConfig) getReverseProxyDirectorFunc() func(*http.Request) {
+	return func(r *http.Request) {
+		vs := r.URL.Query()
+		vs["module"] = vs["module"][1:]
+		r.URL.RawQuery = vs.Encode()
 
+		r.URL.Scheme = cfg.HTTP.Scheme
+		r.URL.Host = net.JoinHostPort(cfg.HTTP.Address, strconv.Itoa(cfg.HTTP.Port))
+		r.URL.Path = cfg.HTTP.Path
+	}
+}
+
+func (cfg moduleConfig) getReverseProxyModifyResponseFunc() func(*http.Response) error {
+	return func(resp *http.Response) error {
 		if resp.StatusCode != 200 {
-			return nil, fmt.Errorf("server responded %v, %q", resp.StatusCode, resp.Status)
+			return nil
 		}
 
-		dec := expfmt.NewDecoder(resp.Body, expfmt.ResponseFormat(resp.Header))
+		var (
+			err     error
+			body    bytes.Buffer
+			oldBody = resp.Body
+		)
+		defer oldBody.Close()
 
-		result := []*dto.MetricFamily{}
+		if _, err = body.ReadFrom(oldBody); err != nil {
+			return &VerifyError{"Failed to read body from proxied server", err}
+		}
+
+		resp.Body = ioutil.NopCloser(bytes.NewReader(body.Bytes()))
+
+		var bodyReader io.ReadCloser
+		if resp.Header.Get("Content-Encoding") == "gzip" {
+			bodyReader, err = gzip.NewReader(bytes.NewReader(body.Bytes()))
+			if err != nil {
+				return &VerifyError{"Failed to decode gzipped response", err}
+			}
+		} else {
+			bodyReader = ioutil.NopCloser(bytes.NewReader(body.Bytes()))
+		}
+		defer bodyReader.Close()
+
+		dec := expfmt.NewDecoder(bodyReader, expfmt.ResponseFormat(resp.Header))
 		for {
 			mf := dto.MetricFamily{}
 			err := dec.Decode(&mf)
@@ -75,49 +96,33 @@ func (c httpConfig) GatherWithContext(ctx context.Context, r *http.Request) prom
 				break
 			}
 			if err != nil {
-				proxyMalformedCount.WithLabelValues(c.mcfg.name).Inc()
-				log.Errorf("err %+v", err)
-				return nil, err
+				proxyMalformedCount.WithLabelValues(cfg.name).Inc()
+				return &VerifyError{"Failed to decode metrics from proxied server", err}
 			}
-
-			result = append(result, &mf)
 		}
 
-		return result, nil
+		return nil
 	}
 }
 
-func (c httpConfig) ServeHTTP(w http.ResponseWriter, r *http.Request) {
-	var h http.Handler
-
-	if !(*c.Verify) {
-		// proxy directly
-		rt := &http.Transport{
-			Dial: (&net.Dialer{
-				Timeout: c.mcfg.Timeout,
-			}).Dial,
-			TLSHandshakeTimeout: c.mcfg.Timeout,
-			TLSClientConfig:     c.tlsConfig,
+func (cfg moduleConfig) getReverseProxyErrorHandlerFunc() func(http.ResponseWriter, *http.Request, error) {
+	return func(w http.ResponseWriter, r *http.Request, err error) {
+		var verifyError *VerifyError
+		if errors.As(err, &verifyError) {
+			log.Errorf("Verification for module '%s' failed: %v", cfg.name, err)
+			http.Error(w, VerificationErrorMsg, http.StatusInternalServerError)
+			return
 		}
-		h = &httputil.ReverseProxy{
-			Transport: rt,
-			Director: func(r *http.Request) {
-				vs := r.URL.Query()
-				vs["module"] = vs["module"][1:]
-				r.URL.RawQuery = vs.Encode()
 
-				r.URL.Scheme = c.Scheme
-				r.URL.Host = net.JoinHostPort(c.Address, strconv.Itoa(c.Port))
-				r.URL.Path = c.Path
-			},
+		if errors.Is(err, context.DeadlineExceeded) {
+			log.Errorf("Request time out for module '%s'", cfg.name)
+			http.Error(w, http.StatusText(http.StatusGatewayTimeout), http.StatusGatewayTimeout)
+			return
 		}
-	} else {
-		ctx := r.Context()
-		g := c.GatherWithContext(ctx, r)
-		h = promhttp.HandlerFor(g, promhttp.HandlerOpts{})
+
+		log.Errorf("Proxy error for module '%s': %v", cfg.name, err)
+		http.Error(w, http.StatusText(http.StatusBadGateway), http.StatusBadGateway)
 	}
-
-	h.ServeHTTP(w, r)
 }
 
 // BearerAuthMiddleware
