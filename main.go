@@ -61,6 +61,9 @@ var (
 	tPath = flag.String("web.telemetry-path", "/metrics", "The address to listen on for HTTP requests.")
 	pPath = flag.String("web.proxy-path", "/proxy", "The address to listen on for HTTP requests.")
 
+	logLevel = LogLevelFlag(log.WarnLevel)
+	logJson  = flag.Bool("log.json", false, "Serialize log messages in JSON")
+
 	proxyDuration = prometheus.NewSummaryVec(
 		prometheus.SummaryOpts{
 			Name: "expexp_proxy_duration_seconds",
@@ -104,6 +107,7 @@ func init() {
 
 	flag.Var(&cfgDirs, "config.dirs", "The path to directories of configuration files, can be specified multiple times.")
 	flag.Var(&acl, "allow.net", "Allow connection from this network specified in CIDR notation. Can be specified multiple times.")
+	flag.Var(&logLevel, "log.level", "Log level")
 }
 
 func setup() (*config, error) {
@@ -312,6 +316,12 @@ func main() {
 		handler = &IPAddressAuthMiddleware{handler, acl}
 	}
 
+	log.SetLevel(log.Level(logLevel))
+	if *logJson {
+		log.SetFormatter(&log.JSONFormatter{})
+	}
+	handler = &AccessLogMiddleware{handler}
+
 	eg, ctx := errgroup.WithContext(context.Background())
 
 	if lsnr != nil {
@@ -327,6 +337,36 @@ func main() {
 	}
 
 	err = eg.Wait()
+}
+
+type responseWriterWithStatus struct {
+	http.ResponseWriter
+	status int
+}
+
+func (w *responseWriterWithStatus) WriteHeader(status int) {
+	w.status = status
+	w.ResponseWriter.WriteHeader(status)
+}
+
+type AccessLogMiddleware struct {
+	http.Handler
+}
+
+func (middleware AccessLogMiddleware) ServeHTTP(w http.ResponseWriter, r *http.Request) {
+	var (
+		start        = time.Now()
+		statusWriter = &responseWriterWithStatus{w, http.StatusOK}
+	)
+	defer func() {
+		remoteHost, _, _ := net.SplitHostPort(r.RemoteAddr)
+		log.Infof(
+			"%s - %s \"%s\" %d %s (took %s)",
+			remoteHost, r.Method, r.URL.RequestURI(), statusWriter.status,
+			http.StatusText(statusWriter.status), time.Now().Sub(start),
+		)
+	}()
+	middleware.Handler.ServeHTTP(statusWriter, r)
 }
 
 func (cfg *config) doProxy(w http.ResponseWriter, r *http.Request) {
@@ -446,6 +486,21 @@ func (nets *IPNetSliceFlag) Set(value string) error {
 		return err
 	} else {
 		*nets = append(*nets, *net)
+	}
+	return nil
+}
+
+type LogLevelFlag log.Level
+
+func (level LogLevelFlag) String() string {
+	return log.Level(level).String()
+}
+
+func (level *LogLevelFlag) Set(value string) error {
+	if lvl, err := log.ParseLevel(value); err != nil {
+		return err
+	} else {
+		*level = LogLevelFlag(lvl)
 	}
 	return nil
 }
