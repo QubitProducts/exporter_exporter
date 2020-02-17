@@ -53,12 +53,12 @@ vet:
 	$(GO) vet $(pkgs)
 
 .PHONY: prepare-package clean-package package
-prepare-package: clean-package build/exporter_exporter-$(VERSION).linux-amd64/exporter_exporter
+prepare-package: clean-package build/$(BINNAME)-$(VERSION).linux-amd64/$(BINNAME)
 	mkdir -p dist/usr/local/bin
 	mkdir -p dist/etc/init
 	mkdir -p dist/etc/default
 	mkdir -p dist/etc/exporter_exporter.d/
-	install -m755 .build/linux-amd64/$(BINNAME) dist/usr/local/bin/$(BINNAME)
+	install -m755 build/$(BINNAME)-$(VERSION).linux-amd64/$(BINNAME) dist/usr/local/bin/$(BINNAME)
 	install -m644 $(BINNAME).conf dist/etc/init/$(BINNAME).conf
 	install -m644 $(BINNAME).defaults dist/etc/default/$(BINNAME)
 	install -m644 expexp.yaml dist/etc/exporter_exporter.yaml
@@ -100,25 +100,23 @@ LDFLAGS = -X main.Version=$(VERSION) \
 					-X main.BuildUser=$(BUILDUSER) \
 					-X main.BuildDate=$(BUILDDATE)
 
-
-build/expoter_exporter-$(VERSION).windows-amd64/exporter_exporter.exe: $(SRCS)
+build/$(BINNAME)-$(VERSION).windows-amd64/$(BINNAME).exe: $(SRCS)
 	GOOS=$* GOARCH=amd64 $(GO) build \
 	 -ldflags "$(LDFLAGS)" \
 	 -o $@ \
 	 .
-build/exporter_exporter-$(VERSION).windows-amd64.zip: build/expoter_exporter-$(VERSION).windows-amd64/exporter_exporter.exe
+build/$(BINNAME)-$(VERSION).windows-amd64.zip: build/expoter_exporter-$(VERSION).windows-amd64/$(BINNAME).exe
 	zip $@ $<
 
-build/exporter_exporter-$(VERSION).%-amd64/exporter_exporter: $(SRCS)
+build/$(BINNAME)-$(VERSION).%-amd64/$(BINNAME): $(SRCS)
 	GOOS=$* GOARCH=amd64 $(GO) build \
 	 -ldflags  "$(LDFLAGS)" \
 	 -o $@ \
 	 .
 
-
-build/exporter_exporter-$(VERSION).%-amd64.tar.gz: build/exporter_exporter-$(VERSION).%-amd64/exporter_exporter
+build/$(BINNAME)-$(VERSION).%-amd64.tar.gz: build/$(BINNAME)-$(VERSION).%-amd64/$(BINNAME)
 	cd build && \
-		tar cfzv exporter_exporter-$(VERSION).$*-amd64.tar.gz exporter_exporter-$(VERSION).$*-amd64
+		tar cfzv $(BINNAME)-$(VERSION).$*-amd64.tar.gz $(BINNAME)-$(VERSION).$*-amd64
 
 
 package: $(PACKAGE_FILE)
