@@ -241,7 +241,7 @@ func runListener(ctx context.Context, name string, lsnr net.Listener, handler ht
 	srvr := http.Server{
 		Handler: handler,
 	}
-
+	manage_service()
 	go func() {
 		<-ctx.Done()
 		srvr.Shutdown(context.Background())
