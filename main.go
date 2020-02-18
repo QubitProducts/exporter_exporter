@@ -396,14 +396,14 @@ func (cfg *config) listModules(w http.ResponseWriter, r *http.Request) {
 	switch r.Header.Get("Accept") {
 	case "application/json":
 		log.Debugf("Listing modules in json")
-		moduleJson, err := json.Marshal(cfg.Modules)
+		moduleJSON, err := json.Marshal(cfg.Modules)
 		if err != nil {
 			log.Error(err)
 			http.Error(w, "Failed to produce JSON", http.StatusInternalServerError)
 			return
 		}
 		w.Header().Set("Content-Type", "application/json")
-		w.Write(moduleJson)
+		w.Write(moduleJSON)
 	default:
 		log.Debugf("Listing modules in html")
 		w.Header().Set("Content-Type", "text/html; charset=utf-8")
