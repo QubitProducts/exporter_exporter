@@ -61,9 +61,9 @@ type httpConfig struct {
 	Address               string                 `yaml:"address"`                  // 127.0.0.1
 	XXX                   map[string]interface{} `yaml:",inline"`
 
-	tlsConfig *tls.Config
-	mcfg      *moduleConfig
-	*httputil.ReverseProxy
+	tlsConfig              *tls.Config
+	mcfg                   *moduleConfig
+	*httputil.ReverseProxy `json:"-"`
 }
 
 type execConfig struct {
