@@ -18,7 +18,7 @@ var (
 	winSvcRunning = false
 )
 
-func manage_service() {
+func manageService() {
 	const winSvcName = "exporter_exporter"
 
 	var err error
@@ -83,7 +83,6 @@ func exePath() (string, error) {
 }
 
 func installService(name, desc string) error {
-
 	exepath, err := exePath()
 	if err != nil {
 		return fmt.Errorf("Unable to determine path of exe: %v", err)
