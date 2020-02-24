@@ -81,6 +81,9 @@ $(PACKAGE_FILE): prepare-package
 	  -a $(PACKAGE_ARCH) \
 	  -v $(PACKAGE_VERSION) \
 	  --iteration $(PACKAGE_REVISION) \
+	  --config-files /etc/$(BINNAME).yaml \
+	  --config-files /etc/init/$(BINNAME).conf \
+	  --config-files /etc/default/$(BINNAME) \
 	  -s dir \
 	  -p ../$(PACKAGE_FILE) \
 	  .
