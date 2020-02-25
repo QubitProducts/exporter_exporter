@@ -1,0 +1,45 @@
+<?xml version="1.0"?>
+<package xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xmlns:xsd="http://www.w3.org/2001/XMLSchema">
+  <metadata>
+    <id>exporter_exporter</id>
+    <version>$version$</version>
+    <title>exporter_exporter</title>
+    <authors>Contributors</authors>
+    <projectUrl>https://github.com/QubitProducts/exporter_exporter</projectUrl>
+    <licenseUrl>https://raw.githubusercontent.com/QubitProducts/exporter_exporter/master/LICENSE</licenseUrl>
+    <requireLicenseAcceptance>false</requireLicenseAcceptance>
+    <docsUrl>https://github.com/QubitProducts/exporter_exporter/blob/master/README.md</docsUrl>
+    <bugTrackerUrl>https://github.com/QubitProducts/exporter_exporter/issues</bugTrackerUrl>
+    <tags>exporter_exporter prometheus exporter monitoring</tags>
+    <summary>Prometheus exporter which acts as a reverse proxy for other exporters</summary>
+    <description>
+exporter_exporter provides a simple reverse proxy for prometheus exporters. It is intended as a single binary alternative to nginx/apache for use in environments where opening multiple TCP ports to all servers might be difficult (technically or politically)
+
+The advantages are:
+
+ * A single port can be used to query multiple exporters (to ease firewall configuration concerns).
+ * Can provide TLS with optional client certificate authentication.
+ * Provides verification that the target is serving prometheus metrics.
+ * Can be used to execute scripts that produce prometheus metrics.
+ * up behaviour is the same as for querying individual collectors.
+ * Small code size, minimal external depedencies, easily auditable.
+
+### Information
+
+ * [Documentation](https://github.com/QubitProducts/exporter_exporter/blob/master/README.md)
+
+#### Arguments
+ * The windows service can be installed by supplying the `-winsvc install` argument to `exporter_exproter`
+ * For all available arguments, plese use `exporter_exporter --help`
+
+    </description>
+    <dependencies>
+      <dependency id="chocolatey-core.extension" version="1.1.0" />
+    </dependencies>
+  </metadata>
+  <files>
+    <file src="tools/**" target="." />
+    <file src="../../build/exporter_exporter-$version$.windows-amd64/exporter_exporter.exe" target="tools" />
+    <file src="../../expexp.yaml" target="tools" />
+  </files>
+</package>
