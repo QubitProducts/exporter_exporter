@@ -45,6 +45,12 @@ TODO:
 - Config reload on HUP (or POST, or config file change?)
 - route to a docker/rocket container by name
 
+### Windows Service
+
+The binary can be installed as a Windows service by supplying the `-winsvc install` arg.
+All other arguments passed along with `-winsvc install` will be added to the service startup 
+and can only be changed by uninstalling/installing it again (or modifying the Windows registry directly).
+
 ## Configuration
 
 In expexp.yaml list each exporter listening on localhost with its known
