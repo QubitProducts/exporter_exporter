@@ -57,7 +57,7 @@ AUTHORS:
 	git log --format='%aN <%aE>' | grep -v Tristan\ Colgate\  | sort -u > AUTHORS
 
 .PHONY: prepare-package-deb prepare-package-rpm clean-package
-prepare-package-deb: clean-package build/$(BINNAME)-$(VERSION).linux-amd64/$(BINNAME)
+prepare-package-deb: clean-package-deb build/$(BINNAME)-$(VERSION).linux-amd64/$(BINNAME)
 	mkdir -p dist/deb/{usr/local/bin,etc/init,etc/default,etc/exporter_exporter.d}
 	install -m755 build/$(BINNAME)-$(VERSION).linux-amd64/$(BINNAME) dist/deb/usr/local/bin/$(BINNAME)
 	install -m644 package/deb/$(BINNAME).conf dist/deb/etc/init/$(BINNAME).conf
@@ -65,14 +65,15 @@ prepare-package-deb: clean-package build/$(BINNAME)-$(VERSION).linux-amd64/$(BIN
 	install -m644 expexp.yaml dist/deb/etc/expexp.yaml
 	touch dist/deb/etc/exporter_exporter.d/.dir
 
-prepare-package-rpm: clean-package build/$(BINNAME)-$(VERSION).linux-amd64/$(BINNAME)
+prepare-package-rpm: clean-package-rpm build/$(BINNAME)-$(VERSION).linux-amd64/$(BINNAME)
 	mkdir -p dist/rpm/{var/log/exporter_exporter,usr/local/bin,usr/lib/systemd/system,etc/sysconfig}
 	install -m755 build/$(BINNAME)-$(VERSION).linux-amd64/$(BINNAME) dist/rpm/usr/local/bin/$(BINNAME)
 	install -m644 package/rpm/$(BINNAME) dist/rpm/etc/sysconfig/$(BINNAME)
 	install -m644 package/rpm/$(BINNAME).service dist/rpm/usr/lib/systemd/system/$(BINNAME).service
 	install -m644 expexp.yaml dist/rpm/etc/expexp.yaml
 
-clean-package:
+clean-package-%:
+	rm -f $(PACKAGE_FILE).$*
 	rm -rf dist
 
 $(PACKAGE_FILE)-deb: prepare-package-deb
@@ -107,7 +108,8 @@ $(PACKAGE_FILE)-rpm: prepare-package-rpm
 	  .
 
 $(PACKAGE_FILE)-nupkg: clean-package build/$(BINNAME)-$(VERSION).windows-amd64/$(BINNAME).exe
-	choco pack --outputdirectory . --version=${PACKAGE_VERSION} --bin=$(BINNAME) build/$(BINNAME)-$(PACKAGE_VERSION).windows-amd64/$(BINNAME).nuspec
+	podman run -v $(PWD):/$(BINNAME) patrickhuber/choco-linux:latest \
+	choco pack --outputdirectory /$(BINNAME) --version=${PACKAGE_VERSION} bin=$(BINNAME) /$(BINNAME)/package/nupkg/$(BINNAME).nuspec
 
 .PHONY: build-docker release-docker
 build-docker: 
@@ -148,6 +150,7 @@ package-deb: $(PACKAGE_FILE)-deb
 package-rpm: $(PACKAGE_FILE)-rpm
 package-nupkg: $(PACKAGE_FILE)-nupkg
 
+release-package-nupkg: PACKAGE_FILE=$(BINNAME)
 release-package-%: $(PACKAGE_FILE)-%
 	go run github.com/aktau/github-release upload \
 	  -u $(GITHUB_ORG) \
