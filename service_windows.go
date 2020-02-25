@@ -14,7 +14,7 @@ import (
 )
 
 var (
-	winSvcCmd     = flag.String("winsvc", "", "Install, remove, start, stop a Windows service")
+	winSvcCmd     = flag.String("winsvc", "", "install, uninstall, start, stop a Windows service")
 	winSvcRunning = false
 )
 
@@ -28,8 +28,8 @@ func manageService() {
 		err = startService(winSvcName)
 	case "install":
 		err = installService(winSvcName, "Reverse proxy for Prometheus exporters")
-	case "remove":
-		err = removeService(winSvcName)
+	case "uninstall":
+		err = uninstallService(winSvcName)
 	case "stop":
 		err = controlService(winSvcName, svc.Stop, svc.Stopped)
 	case "":
@@ -126,7 +126,7 @@ func installService(name, desc string) error {
 	return nil
 }
 
-func removeService(name string) error {
+func uninstallService(name string) error {
 	controlService(name, svc.Stop, svc.Stopped)
 	m, err := mgr.Connect()
 	if err != nil {
