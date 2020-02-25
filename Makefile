@@ -1,6 +1,6 @@
 GITHUB_ORG  = QubitProducts
 GITHUB_REPO = exporter_exporter
-VERSION      = 0.3.1
+VERSION     = 0.3.1
 
 DOCKER_REGISTRY     = qubitproducts
 DOCKER_NAME         = exporter_exporter
@@ -59,9 +59,9 @@ prepare-package: clean-package build/$(BINNAME)-$(VERSION).linux-amd64/$(BINNAME
 	mkdir -p dist/etc/default
 	mkdir -p dist/etc/exporter_exporter.d/
 	install -m755 build/$(BINNAME)-$(VERSION).linux-amd64/$(BINNAME) dist/usr/local/bin/$(BINNAME)
-	install -m644 $(BINNAME).conf dist/etc/init/$(BINNAME).conf
-	install -m644 $(BINNAME).defaults dist/etc/default/$(BINNAME)
-	install -m644 expexp.yaml dist/etc/exporter_exporter.yaml
+	install -m644 package/deb/$(BINNAME).conf dist/etc/init/$(BINNAME).conf
+	install -m644 package/deb/$(BINNAME).defaults dist/etc/default/$(BINNAME)
+	install -m644 expexp.yaml dist/etc/expexp.yaml
 	touch dist/etc/exporter_exporter.d/.dir
 
 clean-package:
