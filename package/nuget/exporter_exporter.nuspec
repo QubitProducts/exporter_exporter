@@ -1,19 +1,19 @@
 <?xml version="1.0"?>
 <package xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xmlns:xsd="http://www.w3.org/2001/XMLSchema">
   <metadata>
-    <id>exporter_exporter</id>
+    <id>$bin$</id>
     <version>$version$</version>
-    <title>exporter_exporter</title>
+    <title>$bin$</title>
     <authors>Contributors</authors>
     <projectUrl>https://github.com/QubitProducts/exporter_exporter</projectUrl>
     <licenseUrl>https://raw.githubusercontent.com/QubitProducts/exporter_exporter/master/LICENSE</licenseUrl>
     <requireLicenseAcceptance>false</requireLicenseAcceptance>
     <docsUrl>https://github.com/QubitProducts/exporter_exporter/blob/master/README.md</docsUrl>
     <bugTrackerUrl>https://github.com/QubitProducts/exporter_exporter/issues</bugTrackerUrl>
-    <tags>exporter_exporter prometheus exporter monitoring</tags>
+    <tags>$bin$ prometheus exporter monitoring</tags>
     <summary>Prometheus exporter which acts as a reverse proxy for other exporters</summary>
     <description>
-exporter_exporter provides a simple reverse proxy for prometheus exporters. It is intended as a single binary alternative to nginx/apache for use in environments where opening multiple TCP ports to all servers might be difficult (technically or politically)
+$bin$ provides a simple reverse proxy for prometheus exporters. It is intended as a single binary alternative to nginx/apache for use in environments where opening multiple TCP ports to all servers might be difficult (technically or politically)
 
 The advantages are:
 
@@ -29,8 +29,8 @@ The advantages are:
  * [Documentation](https://github.com/QubitProducts/exporter_exporter/blob/master/README.md)
 
 #### Arguments
- * The windows service can be installed by supplying the `-winsvc install` argument to `exporter_exproter`
- * For all available arguments, plese use `exporter_exporter --help`
+ * The windows service can be installed by supplying the `-winsvc install` argument to `$bin$`
+ * For all available arguments, plese use `$bin$ --help`
 
     </description>
     <dependencies>
@@ -39,7 +39,7 @@ The advantages are:
   </metadata>
   <files>
     <file src="tools/**" target="." />
-    <file src="../../build/exporter_exporter-$version$.windows-amd64/exporter_exporter.exe" target="tools" />
+    <file src="../../build/$bin$-$version$.windows-amd64/$bin$.exe" target="tools" />
     <file src="../../expexp.yaml" target="tools" />
   </files>
 </package>

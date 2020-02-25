@@ -14,20 +14,19 @@ FILES         = $(shell find . -name '*.go' | grep -v vendor)
 PREFIX       ?= $(shell pwd)
 BIN_DIR      ?= $(shell pwd)
 
-PACKAGE_TARGET     = deb
 PACKAGE_NAME       = expexp
 PACKAGE_VERSION    = $(VERSION)
 PACKAGE_REVISION   = 3
 PACKAGE_ARCH       = amd64
 PACKAGE_MAINTAINER = tristan@qubit.com
-PACKAGE_FILE       = $(PACKAGE_NAME)_$(PACKAGE_VERSION)-$(PACKAGE_REVISION)_$(PACKAGE_ARCH).$(PACKAGE_TARGET)
+PACKAGE_FILE       = $(PACKAGE_NAME)_$(PACKAGE_VERSION)-$(PACKAGE_REVISION)_$(PACKAGE_ARCH)
 BINNAME            = exporter_exporter
 
 PWD := $(shell pwd)
 
-all: package
+all: clean build/$(BINNAME)-$(VERSION).linux-amd64/$(BINNAME) build/$(BINNAME)-$(VERSION).windows-amd64/$(BINNAME) build/$(BINNAME)-$(VERSION).darwin-amd64/$(BINNAME)
 clean:
-	rm -f $(PACKAGE_FILE)
+	rm -f $(PACKAGE_FILE).{deb,rpm,nupkg}
 	rm -rf dist
 	rm -rf build
 
@@ -52,41 +51,63 @@ vet:
 	echo ">> vetting code"
 	$(GO) vet $(pkgs)
 
-.PHONY: prepare-package clean-package package
-prepare-package: clean-package build/$(BINNAME)-$(VERSION).linux-amd64/$(BINNAME)
-	mkdir -p dist/usr/local/bin
-	mkdir -p dist/etc/init
-	mkdir -p dist/etc/default
-	mkdir -p dist/etc/exporter_exporter.d/
-	install -m755 build/$(BINNAME)-$(VERSION).linux-amd64/$(BINNAME) dist/usr/local/bin/$(BINNAME)
-	install -m644 package/deb/$(BINNAME).conf dist/etc/init/$(BINNAME).conf
-	install -m644 package/deb/$(BINNAME).defaults dist/etc/default/$(BINNAME)
-	install -m644 expexp.yaml dist/etc/expexp.yaml
-	touch dist/etc/exporter_exporter.d/.dir
-
-clean-package:
-	rm -rf dist
-
 .PHONY: AUTHORS
 AUTHORS:
 	# There's only so much credit I need.
 	git log --format='%aN <%aE>' | grep -v Tristan\ Colgate\  | sort -u > AUTHORS
 
-$(PACKAGE_FILE): prepare-package
-	cd dist && \
+.PHONY: prepare-package-deb prepare-package-rpm clean-package
+prepare-package-deb: clean-package build/$(BINNAME)-$(VERSION).linux-amd64/$(BINNAME)
+	mkdir -p dist/deb/{usr/local/bin,etc/init,etc/default,etc/exporter_exporter.d}
+	install -m755 build/$(BINNAME)-$(VERSION).linux-amd64/$(BINNAME) dist/deb/usr/local/bin/$(BINNAME)
+	install -m644 package/deb/$(BINNAME).conf dist/deb/etc/init/$(BINNAME).conf
+	install -m644 package/deb/$(BINNAME).defaults dist/deb/etc/default/$(BINNAME)
+	install -m644 expexp.yaml dist/deb/etc/expexp.yaml
+	touch dist/deb/etc/exporter_exporter.d/.dir
+
+prepare-package-rpm: clean-package build/$(BINNAME)-$(VERSION).linux-amd64/$(BINNAME)
+	mkdir -p dist/rpm/{var/log/exporter_exporter,usr/local/bin,usr/lib/systemd/system,etc/sysconfig}
+	install -m755 build/$(BINNAME)-$(VERSION).linux-amd64/$(BINNAME) dist/rpm/usr/local/bin/$(BINNAME)
+	install -m644 package/rpm/$(BINNAME) dist/rpm/etc/sysconfig/$(BINNAME)
+	install -m644 package/rpm/$(BINNAME).service dist/rpm/usr/lib/systemd/system/$(BINNAME).service
+	install -m644 expexp.yaml dist/rpm/etc/expexp.yaml
+
+clean-package:
+	rm -rf dist
+
+$(PACKAGE_FILE)-deb: prepare-package-deb
 	  fpm \
-	  -t $(PACKAGE_TARGET) \
+	  -C dist/deb \
+	  -t deb \
 	  -m $(PACKAGE_MAINTAINER) \
 	  -n $(PACKAGE_NAME) \
 	  -a $(PACKAGE_ARCH) \
 	  -v $(PACKAGE_VERSION) \
 	  --iteration $(PACKAGE_REVISION) \
-	  --config-files /etc/$(BINNAME).yaml \
+	  --config-files /etc/expexp.yaml \
 	  --config-files /etc/init/$(BINNAME).conf \
 	  --config-files /etc/default/$(BINNAME) \
 	  -s dir \
-	  -p ../$(PACKAGE_FILE) \
+	  -p $(PACKAGE_FILE).deb \
 	  .
+
+$(PACKAGE_FILE)-rpm: prepare-package-rpm
+	  fpm \
+	  -C dist/rpm \
+	  -t rpm \
+	  -m $(PACKAGE_MAINTAINER) \
+	  -n $(PACKAGE_NAME) \
+	  -a $(PACKAGE_ARCH) \
+	  -v $(PACKAGE_VERSION) \
+	  --iteration $(PACKAGE_REVISION) \
+	  --config-files /etc/expexp.yaml \
+	  --config-files /etc/sysconfig/$(BINNAME) \
+	  -s dir \
+	  -p $(PACKAGE_FILE).rpm \
+	  .
+
+$(PACKAGE_FILE)-nupkg: clean-package build/$(BINNAME)-$(VERSION).windows-amd64/$(BINNAME).exe
+	choco pack --outputdirectory . --version=${PACKAGE_VERSION} --bin=$(BINNAME) build/$(BINNAME)-$(PACKAGE_VERSION).windows-amd64/$(BINNAME).nuspec
 
 .PHONY: build-docker release-docker
 build-docker: 
@@ -104,10 +125,11 @@ LDFLAGS = -X main.Version=$(VERSION) \
 					-X main.BuildDate=$(BUILDDATE)
 
 build/$(BINNAME)-$(VERSION).windows-amd64/$(BINNAME).exe: $(SRCS)
-	GOOS=$* GOARCH=amd64 $(GO) build \
+	GOOS=windows GOARCH=amd64 $(GO) build \
 	 -ldflags "$(LDFLAGS)" \
 	 -o $@ \
 	 .
+
 build/$(BINNAME)-$(VERSION).windows-amd64.zip: build/expoter_exporter-$(VERSION).windows-amd64/$(BINNAME).exe
 	zip $@ $<
 
@@ -121,16 +143,18 @@ build/$(BINNAME)-$(VERSION).%-amd64.tar.gz: build/$(BINNAME)-$(VERSION).%-amd64/
 	cd build && \
 		tar cfzv $(BINNAME)-$(VERSION).$*-amd64.tar.gz $(BINNAME)-$(VERSION).$*-amd64
 
+.PHONY: package-deb package-rpm package-nupkg
+package-deb: $(PACKAGE_FILE)-deb
+package-rpm: $(PACKAGE_FILE)-rpm
+package-nupkg: $(PACKAGE_FILE)-nupkg
 
-package: $(PACKAGE_FILE)
-
-package-release: $(PACKAGE_FILE)
+release-package-%: $(PACKAGE_FILE)-%
 	go run github.com/aktau/github-release upload \
 	  -u $(GITHUB_ORG) \
 	 	-r $(GITHUB_REPO) \
 	 	--tag v$(VERSION) \
-		--name $(PACKAGE_FILE) \
-		--file $(PACKAGE_FILE)
+		--name $(PACKAGE_FILE).$* \
+		--file $(PACKAGE_FILE).$*
 
 release-windows: build/exporter_exporter-$(VERSION).windows-amd64.zip
 	go run github.com/aktau/github-release upload \
@@ -156,4 +180,4 @@ release:
 		-r $(GITHUB_REPO) \
 		--tag v$(VERSION) \
 		--name v$(VERSION)
-	make release-darwin release-linux release-windows package-release
+	make release-darwin release-linux release-windows release-package-deb release-package-rpm release-package-nupkg
