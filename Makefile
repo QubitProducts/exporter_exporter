@@ -114,7 +114,7 @@ $(PACKAGE_FILE)-rpm: prepare-package-rpm
 	  .
 
 $(PACKAGE_FILE)-nupkg: clean-package build/$(BINNAME)-$(VERSION).windows-amd64/$(BINNAME).exe
-	docker run -v $(PWD):/$(BINNAME) patrickhuber/choco-linux:latest \
+	docker run -v $(PWD):/$(BINNAME) -w /$(BINNAME) patrickhuber/choco-linux:latest \
 	choco pack --outputdirectory /$(BINNAME) --version=${PACKAGE_VERSION} bin=$(BINNAME) /$(BINNAME)/package/nupkg/$(BINNAME).nuspec
 
 .PHONY: build-docker release-docker

@@ -38,8 +38,8 @@ The advantages are:
     </dependencies>
   </metadata>
   <files>
-    <file src="/exporter_exporter/package/nupkg/tools/**" target="." />
-    <file src="/exporter_exporter/build/$bin$-$version$.windows-amd64/$bin$.exe" target="tools" />
-    <file src="/exporter_exporter/expexp.yaml" target="tools" />
+    <file src="package/nupkg/tools/**" target="tools" />
+    <file src="build/$bin$-$version$.windows-amd64/$bin$.exe" target="tools" />
+    <file src="expexp.yaml" target="tools" />
   </files>
 </package>
