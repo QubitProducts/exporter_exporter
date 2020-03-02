@@ -3,7 +3,7 @@ Description=Exporter Exporter
 After=network-online.target
 [Service]
 EnvironmentFile=-/etc/sysconfig/exporter_exporter
-ExecStart=/usr/sbin/exporter_exporter $EXPEXP_FLAGS
+ExecStart=/usr/sbin/exporter_exporter $OPTIONS
 Restart=on-failure
 [Install]
 WantedBy=multi-user.target
