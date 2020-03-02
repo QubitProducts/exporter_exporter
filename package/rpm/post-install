@@ -1,0 +1,8 @@
+#!/bin/sh
+
+set -e
+
+if command -v systemctl >/dev/null; then
+	# Reload systemd configuration in case a new unit file was added
+	systemctl daemon-reload || true
+fi

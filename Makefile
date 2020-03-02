@@ -76,6 +76,11 @@ clean-package-%:
 	rm -f $(PACKAGE_FILE).$*
 	rm -rf dist
 
+.PHONY: package-deb package-rpm package-nupkg
+package-deb: $(PACKAGE_FILE)-deb
+package-rpm: $(PACKAGE_FILE)-rpm
+package-nupkg: $(PACKAGE_FILE)-nupkg
+
 $(PACKAGE_FILE)-deb: prepare-package-deb
 	  fpm \
 	  -C dist/deb \
@@ -101,6 +106,7 @@ $(PACKAGE_FILE)-rpm: prepare-package-rpm
 	  -a $(PACKAGE_ARCH) \
 	  -v $(PACKAGE_VERSION) \
 	  --iteration $(PACKAGE_REVISION) \
+	  --after-install ./package/rpm/post-install \
 	  --config-files /etc/expexp.yaml \
 	  --config-files /etc/sysconfig/$(BINNAME) \
 	  -s dir \
@@ -126,6 +132,10 @@ LDFLAGS = -X main.Version=$(VERSION) \
 					-X main.BuildUser=$(BUILDUSER) \
 					-X main.BuildDate=$(BUILDDATE)
 
+.PHONY: build-linux build-windows
+build-linux: build/$(BINNAME)-$(VERSION).linux-amd64/$(BINNAME)
+build-windows: build/$(BINNAME)-$(VERSION).windows-amd64/$(BINNAME).exe
+
 build/$(BINNAME)-$(VERSION).windows-amd64/$(BINNAME).exe: $(SRCS)
 	GOOS=windows GOARCH=amd64 $(GO) build \
 	 -ldflags "$(LDFLAGS)" \
@@ -144,11 +154,6 @@ build/$(BINNAME)-$(VERSION).%-amd64/$(BINNAME): $(SRCS)
 build/$(BINNAME)-$(VERSION).%-amd64.tar.gz: build/$(BINNAME)-$(VERSION).%-amd64/$(BINNAME)
 	cd build && \
 		tar cfzv $(BINNAME)-$(VERSION).$*-amd64.tar.gz $(BINNAME)-$(VERSION).$*-amd64
-
-.PHONY: package-deb package-rpm package-nupkg
-package-deb: $(PACKAGE_FILE)-deb
-package-rpm: $(PACKAGE_FILE)-rpm
-package-nupkg: $(PACKAGE_FILE)-nupkg
 
 release-package-nupkg: PACKAGE_FILE=$(BINNAME)
 release-package-%: $(PACKAGE_FILE)-%

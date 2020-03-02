@@ -1,6 +1,8 @@
-exporter_exporter
+/exporter_exporter
 *.pem
 *.deb
+*.rpm
+*.nupkg
 dist
 build
 .build
