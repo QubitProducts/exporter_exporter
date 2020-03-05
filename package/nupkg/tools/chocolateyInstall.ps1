@@ -3,6 +3,7 @@ $packageName    = 'exporter_exporter'
 $toolsDir    = "$(Split-Path -parent $MyInvocation.MyCommand.Definition)"
 $fileLocation = Join-Path $toolsDir "$packageName.exe"
 
+# Ensure there's no previous exporter_exporter remaining
 $service = Get-WmiObject -Class Win32_Service -Filter "Name='$packageName'" 
 if ( $service ) {
   if (Get-Service $packageName | Where-Object {$_.status -eq 'running'}) {
