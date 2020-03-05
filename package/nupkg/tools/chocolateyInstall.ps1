@@ -3,6 +3,14 @@ $packageName    = 'exporter_exporter'
 $toolsDir    = "$(Split-Path -parent $MyInvocation.MyCommand.Definition)"
 $fileLocation = Join-Path $toolsDir "$packageName.exe"
 
+$service = Get-WmiObject -Class Win32_Service -Filter "Name='$packageName'" 
+if ( $service ) {
+  if (Get-Service $packageName | Where-Object {$_.status -eq 'running'}) {
+      Stop-Service $packageName
+  }
+  $service.Delete()
+}
+
 $pp = Get-PackageParameters
 $boolParams = @(
   "config.skip-dirs"
