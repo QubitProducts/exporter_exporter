@@ -241,7 +241,6 @@ func runListener(ctx context.Context, name string, lsnr net.Listener, handler ht
 	srvr := http.Server{
 		Handler: handler,
 	}
-	manageService()
 	go func() {
 		<-ctx.Done()
 		srvr.Shutdown(context.Background())
@@ -263,6 +262,7 @@ func main() {
 	}()
 
 	flag.Parse()
+	manageService()
 
 	if *printVersion {
 		fmt.Fprintf(os.Stderr, "Version: %s\n", versionStr())
