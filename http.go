@@ -52,6 +52,9 @@ func (cfg moduleConfig) getReverseProxyDirectorFunc() func(*http.Request) {
 		vs["module"] = vs["module"][1:]
 		r.URL.RawQuery = vs.Encode()
 
+		for k, v := range cfg.HTTP.Headers {
+			r.Header.Add(k, v)
+		}
 		r.URL.Scheme = cfg.HTTP.Scheme
 		r.URL.Host = net.JoinHostPort(cfg.HTTP.Address, strconv.Itoa(cfg.HTTP.Port))
 		r.URL.Path = cfg.HTTP.Path

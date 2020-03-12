@@ -53,8 +53,7 @@ and can only be changed by uninstalling/installing it again (or modifying the Wi
 
 ## Configuration
 
-In expexp.yaml list each exporter listening on localhost with its known
-port.
+In expexp.yaml list each exporter listening on localhost with its known port.
 
 ```
 modules:
@@ -67,6 +66,8 @@ modules:
     method: http
     http:
        port: 3903
+       headers:
+          foo: bar
 
   cadvisor:
     verify: false
