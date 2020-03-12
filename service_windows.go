@@ -91,7 +91,7 @@ func installService(name, desc string) error {
 	flag.Visit(func(f *flag.Flag) {
 		if f.Name != "winsvc" {
 			serviceArgs = append(serviceArgs, fmt.Sprintf("-%s", f.Name))
-			if f.Value.String() != "" {
+			if f.Value.String() != "true" {
 				serviceArgs = append(serviceArgs, f.Value.String())
 			}
 		}
