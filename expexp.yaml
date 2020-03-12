@@ -9,6 +9,8 @@ modules:
     method: http
     http:
        port: 3903
+       headers:
+          foo: bar
 
   cadvisor:
     method: http

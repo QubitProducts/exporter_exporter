@@ -59,6 +59,7 @@ type httpConfig struct {
 	Path                  string                 `yaml:"path"`                     // /metrics
 	Scheme                string                 `yaml:"scheme"`                   // http
 	Address               string                 `yaml:"address"`                  // 127.0.0.1
+	Headers               map[string]string      `yaml:"headers"`                  // no default
 	XXX                   map[string]interface{} `yaml:",inline"`
 
 	tlsConfig              *tls.Config
