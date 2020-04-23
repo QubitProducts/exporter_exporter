@@ -1,6 +1,30 @@
 modules:
-  test:
+  node:
+    method: http
+    http:
+       port: 9100
+       tls_ca_cert_file: nofile
+
+  mtail:
+    method: http
+    http:
+       port: 3903
+       headers:
+          foo: bar
+
+  cadvisor:
+    method: http
+    http:
+       port: 4194
+
+  haproxy:
     method: http
     http:
        port: 9101
+
+  blackbox:
+    method: http
+    http:
+       port: 9115
+       path: probe
 
