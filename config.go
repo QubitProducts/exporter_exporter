@@ -170,6 +170,7 @@ func checkModuleConfig(name string, cfg *moduleConfig) error {
 func (c httpConfig) getTLSConfig() (*tls.Config, error) {
 	config := &tls.Config{
 		InsecureSkipVerify: c.TLSInsecureSkipVerify,
+		MinVersion:         tls.VersionTLS12,
 	}
 	if c.TLSCACertFile != nil {
 		caCert, err := ioutil.ReadFile(*c.TLSCACertFile)
