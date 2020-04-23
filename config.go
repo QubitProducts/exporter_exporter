@@ -147,10 +147,16 @@ func checkModuleConfig(name string, cfg *moduleConfig) error {
 		if err != nil {
 			return fmt.Errorf("could not create tls config, %w", err)
 		}
+
+		dirFunc, err := cfg.getReverseProxyDirectorFunc()
+		if err != nil {
+			return err
+		}
+
 		cfg.HTTP.tlsConfig = tlsConfig
 		cfg.HTTP.ReverseProxy = &httputil.ReverseProxy{
 			Transport:    &http.Transport{TLSClientConfig: tlsConfig},
-			Director:     cfg.getReverseProxyDirectorFunc(),
+			Director:     dirFunc,
 			ErrorHandler: cfg.getReverseProxyErrorHandlerFunc(),
 		}
 		if *cfg.HTTP.Verify {

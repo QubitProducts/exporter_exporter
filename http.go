@@ -18,10 +18,12 @@ import (
 	"compress/gzip"
 	"context"
 	"errors"
+	"fmt"
 	"io"
 	"io/ioutil"
 	"net"
 	"net/http"
+	"net/url"
 	"strconv"
 	"strings"
 
@@ -46,19 +48,33 @@ type VerifyError struct {
 func (e *VerifyError) Error() string { return e.msg + ": " + e.cause.Error() }
 func (e *VerifyError) Unwrap() error { return e.cause }
 
-func (cfg moduleConfig) getReverseProxyDirectorFunc() func(*http.Request) {
+func (cfg moduleConfig) getReverseProxyDirectorFunc() (func(*http.Request), error) {
+	base, err := url.Parse(cfg.HTTP.Path)
+	if err != nil {
+		return nil, fmt.Errorf("http configuration path should be a valid URL path with options, %w", err)
+	}
+
+	cvs := base.Query()
+
 	return func(r *http.Request) {
-		vs := r.URL.Query()
-		vs["module"] = vs["module"][1:]
-		r.URL.RawQuery = vs.Encode()
+		qvs := r.URL.Query()
+		for k, vs := range cvs {
+			for _, v := range vs {
+				qvs.Add(k, v)
+			}
+		}
+		qvs["module"] = qvs["module"][1:]
+
+		r.URL.RawQuery = qvs.Encode()
 
 		for k, v := range cfg.HTTP.Headers {
 			r.Header.Add(k, v)
 		}
+
 		r.URL.Scheme = cfg.HTTP.Scheme
 		r.URL.Host = net.JoinHostPort(cfg.HTTP.Address, strconv.Itoa(cfg.HTTP.Port))
-		r.URL.Path = cfg.HTTP.Path
-	}
+		r.URL.Path = base.Path
+	}, nil
 }
 
 func (cfg moduleConfig) getReverseProxyModifyResponseFunc() func(*http.Response) error {
