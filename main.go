@@ -28,6 +28,7 @@ import (
 	"os"
 	"path"
 	"path/filepath"
+	"regexp"
 	"strings"
 	"time"
 
@@ -52,11 +53,12 @@ var (
 
 	acl IPNetSliceFlag
 
-	certPath = flag.String("web.tls.cert", "cert.pem", "Path to cert")
-	keyPath  = flag.String("web.tls.key", "key.pem", "Path to key")
-	caPath   = flag.String("web.tls.ca", "ca.pem", "Path to CA to auth clients against")
-	verify   = flag.Bool("web.tls.verify", false, "Enable client verification")
-	tlsAddr  = flag.String("web.tls.listen-address", "", "The address to listen on for HTTPS requests.")
+	certPath  = flag.String("web.tls.cert", "cert.pem", "Path to cert")
+	keyPath   = flag.String("web.tls.key", "key.pem", "Path to key")
+	caPath    = flag.String("web.tls.ca", "ca.pem", "Path to CA to auth clients against")
+	verify    = flag.Bool("web.tls.verify", false, "Enable client verification")
+	certMatch = flag.String("web.tls.certmatch", "", "if set, this is used as a regexp that is matched against any certificate subject, dnsname or email address, only certs with a match are verified. web.tls.verify must also be set")
+	tlsAddr   = flag.String("web.tls.listen-address", "", "The address to listen on for HTTPS requests.")
 
 	tPath = flag.String("web.telemetry-path", "/metrics", "The address to listen on for HTTP requests.")
 	pPath = flag.String("web.proxy-path", "/proxy", "The address to listen on for HTTP requests.")
@@ -204,6 +206,30 @@ cfgDirs:
 	return cfg, nil
 }
 
+func getClientValidator(r *regexp.Regexp, helloInfo *tls.ClientHelloInfo) func([][]byte, [][]*x509.Certificate) error {
+	return func(rawCerts [][]byte, verifiedChains [][]*x509.Certificate) error {
+		for _, c := range verifiedChains {
+			leaf := c[0]
+
+			if r.MatchString(leaf.Subject.CommonName) {
+				return nil
+			}
+
+			for _, name := range leaf.DNSNames {
+				if r.MatchString(name) {
+					return nil
+				}
+			}
+
+			for _, name := range leaf.EmailAddresses {
+				if r.MatchString(name) {
+					return nil
+				}
+			}
+		}
+		return errors.New("no client certificate subject or email address matched")
+	}
+}
 func setupTLS() (*tls.Config, error) {
 	var tlsConfig *tls.Config
 	if *tlsAddr == "" {
@@ -241,6 +267,22 @@ func setupTLS() (*tls.Config, error) {
 		}
 		tlsConfig.ClientAuth = tls.RequireAndVerifyClientCert
 		tlsConfig.ClientCAs = pool
+
+		if *certMatch != "" {
+			rx, err := regexp.Compile(*certMatch)
+			if err != nil {
+				return nil, fmt.Errorf("tls.web.certmatch is not a valid regexp, %w", err)
+			}
+			tlsConfig.GetConfigForClient = func(hi *tls.ClientHelloInfo) (*tls.Config, error) {
+				serverConf := tlsConfig.Clone()
+				serverConf.VerifyPeerCertificate = getClientValidator(rx, hi)
+				return serverConf, nil
+			}
+		}
+	} else {
+		if *certMatch != "" {
+			return nil, errors.New("tls.web.verify must be set to use certificate matching")
+		}
 	}
 
 	return tlsConfig, nil
