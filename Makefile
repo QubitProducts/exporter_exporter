@@ -1,6 +1,6 @@
 GITHUB_ORG  = QubitProducts
 GITHUB_REPO = exporter_exporter
-VERSION      = 0.3.1
+VERSION      = 0.4.0
 
 DOCKER_REGISTRY     = qubitproducts
 DOCKER_NAME         = exporter_exporter
