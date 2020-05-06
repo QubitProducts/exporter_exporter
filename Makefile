@@ -108,7 +108,7 @@ build/$(BINNAME)-$(VERSION).windows-amd64/$(BINNAME).exe: $(SRCS)
 	 -ldflags "$(LDFLAGS)" \
 	 -o $@ \
 	 .
-build/$(BINNAME)-$(VERSION).windows-amd64.zip: build/expoter_exporter-$(VERSION).windows-amd64/$(BINNAME).exe
+build/$(BINNAME)-$(VERSION).windows-amd64.zip: build/exporter_exporter-$(VERSION).windows-amd64/$(BINNAME).exe
 	zip $@ $<
 
 build/$(BINNAME)-$(VERSION).%-amd64/$(BINNAME): $(SRCS)
