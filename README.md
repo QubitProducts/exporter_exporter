@@ -224,7 +224,7 @@ When this is working, configure your prometheus server to use https. Example:
       - source_labels: [__address__]
         target_label: instance
       - source_labels: [__address__]
-        regex: '[^:]+'
+        regex: '([^:]+)'
         target_label: __address__
         replacement: '${1}:9998'
 ```
