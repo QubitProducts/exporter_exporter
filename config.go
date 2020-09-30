@@ -60,6 +60,8 @@ type httpConfig struct {
 	Scheme                string                 `yaml:"scheme"`                   // http
 	Address               string                 `yaml:"address"`                  // 127.0.0.1
 	Headers               map[string]string      `yaml:"headers"`                  // no default
+	BasicAuthUsername     string                 `yaml:"basic_auth_username"`      // no default
+	BasicAuthPassword     string                 `yaml:"basic_auth_password"`      // no default
 	XXX                   map[string]interface{} `yaml:",inline"`
 
 	tlsConfig              *tls.Config
