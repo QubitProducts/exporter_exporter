@@ -70,11 +70,11 @@ modules:
           foo: bar
 
   cadvisor:
-    verify: false
     method: http
     http:
+       verify: false
        port: 4194
-  
+
   netdata:
     method: http
     http:
