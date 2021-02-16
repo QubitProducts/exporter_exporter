@@ -1,9 +1,11 @@
 module github.com/QubitProducts/exporter_exporter
 
 require (
-	github.com/aktau/github-release v0.7.2
+	github.com/aktau/github-release v0.10.0
 	github.com/dustin/go-humanize v1.0.0 // indirect
+	github.com/github-release/github-release v0.10.0 // indirect
 	github.com/golang/protobuf v1.3.1 // indirect
+	github.com/kevinburke/rest v0.0.0-20210106114233-22cd0577e450 // indirect
 	github.com/konsorten/go-windows-terminal-sequences v1.0.2 // indirect
 	github.com/kr/pretty v0.1.0 // indirect
 	github.com/prometheus/client_golang v0.9.2
