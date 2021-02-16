@@ -104,12 +104,12 @@ LDFLAGS = -X main.Version=$(VERSION) \
 					-X main.BuildDate=$(BUILDDATE)
 
 build/$(BINNAME)-$(VERSION).windows-amd64/$(BINNAME).exe: $(SRCS)
-	GOOS=$* GOARCH=amd64 $(GO) build \
+	GOOS=windows GOARCH=amd64 $(GO) build \
 	 -ldflags "$(LDFLAGS)" \
 	 -o $@ \
 	 .
 build/$(BINNAME)-$(VERSION).windows-amd64.zip: build/exporter_exporter-$(VERSION).windows-amd64/$(BINNAME).exe
-	zip $@ $<
+	zip -j $@ $<
 
 build/$(BINNAME)-$(VERSION).%-amd64/$(BINNAME): $(SRCS)
 	GOOS=$* GOARCH=amd64 $(GO) build \
