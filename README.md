@@ -21,9 +21,10 @@ The exporter has three endpoints.
   - Returns JSON if the header "Accept: application/json" is passed
 
 - /proxy: which takes the following parameters:
-  - module: the name of the module from the configuration to execute.
-  - args (optional): arguments to pass to the module.
-  - params (optional): named parameter to pass to the module (either as CLI args, or http parameters).
+  - *module*: the name of the module from the configuration to execute.
+  - *args*: (only for exec modules): additional arguments to the backend command.
+  - all other query string parameters are passed on to any http backend module.
+    (excluding the first *module* parameter value).
 
 - /metrics: this exposes the metrics for the collector itself.
 
@@ -81,6 +82,12 @@ modules:
        port: 19999
        path: '/api/v1/allmetrics?format=prometheus'
 
+  blackbox:
+    method: http
+    http:
+       port: 9115
+       path: '/proxy'
+
   somescript:
     method: exec
     timeout: 1s
@@ -126,7 +133,36 @@ scrape_configs:
         - somescript
     static_configs:
       - targets: ['host:9999']
+  - job_name: 'blackbox'
+    metrics_path: /proxy
+    params:
+      module:
+        - blackbox
+        - icmp_example
+    static_configs:
+      - targets:
+        - 8.8.8.8
+        - 8.8.4.4
+    relabel_configs:
+      - source_labels: [__address__]
+        target_label: __param_target
+      - source_labels: [__param_target]
+        target_label: instance
+      - target_label: __address__
+        replacement: host:9999
 ```
+
+### Blackbox Exporter
+
+The blackbox exporter also uses the "module" query string parameter. To query it via
+exporter_exporter we rely on the stripping of the initial "module" parameter. For example
+ 
+```
+curl http://localhost:9999/proxy\?module\=blackbox\&module\=icmp_example\&target\=8.8.8.8
+```
+
+Will query the icmp_example module in your blackbox configuration.
+
 
 ## Directory-based configuration
 
