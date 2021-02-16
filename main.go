@@ -428,7 +428,7 @@ func (cfg *config) doProxy(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	log.Debugf("running module %v\n", mod)
+	log.Debugf("running module %v\n", mod[0])
 
 	var h http.Handler
 	if m, ok := cfg.Modules[mod[0]]; !ok {
