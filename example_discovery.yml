@@ -1,0 +1,8 @@
+discovery: 
+  enabled: true
+  exporters: 
+    node:
+      port: 9100
+    minio:
+      port: 9091
+      path: "http://%s/minio/prometheus/metrics"

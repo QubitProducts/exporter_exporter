@@ -14,7 +14,6 @@
 package main
 
 import (
-	"bytes"
 	"crypto/tls"
 	"crypto/x509"
 	"fmt"
@@ -22,6 +21,7 @@ import (
 	"io/ioutil"
 	"net/http"
 	"net/http/httputil"
+	"sync"
 	"time"
 
 	yaml "gopkg.in/yaml.v2"
@@ -30,12 +30,51 @@ import (
 type config struct {
 	Global struct {
 	}
-	Modules map[string]*moduleConfig
-	XXX     map[string]interface{} `yaml:",inline"`
+	Modules   map[string]*moduleConfig
+	Discovery *discoveryConfig
+	XXX       map[string]interface{} `yaml:",inline"`
 
 	bearerToken   string
 	proxyPath     string
 	telemetryPath string
+
+	mutex sync.Mutex
+}
+
+func newConfig() *config {
+	return &config{
+		Modules: make(map[string]*moduleConfig),
+		Discovery: &discoveryConfig{
+			Exporters: make(map[string]*exporter),
+		},
+		XXX: make(map[string]interface{}),
+	}
+}
+
+func (cfg *config) GetModules() map[string]*moduleConfig {
+	mods := make(map[string]*moduleConfig)
+
+	cfg.mutex.Lock()
+	for k, v := range cfg.Modules {
+		mods[k] = v
+	}
+	cfg.mutex.Unlock()
+	return mods
+}
+
+func (cfg *config) getModule(name string) *moduleConfig {
+	cfg.mutex.Lock()
+	defer cfg.mutex.Unlock()
+	if m, ok := cfg.Modules[name]; ok {
+		return m
+	}
+	return nil
+}
+
+func (cfg *config) addModule(name string, m *moduleConfig) {
+	cfg.mutex.Lock()
+	cfg.Modules[name] = m
+	cfg.mutex.Unlock()
 }
 
 type moduleConfig struct {
@@ -47,6 +86,19 @@ type moduleConfig struct {
 	HTTP httpConfig `yaml:"http"`
 
 	name string
+}
+
+type discoveryConfig struct {
+	Enabled   bool   `yaml:"enabled"`
+	Interval  string `yaml:"interval"`
+	interval  time.Duration
+	Address   string               `yaml:"target"` // default localhost
+	Exporters map[string]*exporter `yaml:"exporters"`
+}
+
+type exporter struct {
+	Port int    `yaml:"port"`
+	Path string `yaml:"path"`
 }
 
 type httpConfig struct {
@@ -79,11 +131,8 @@ type execConfig struct {
 }
 
 func readConfig(r io.Reader) (*config, error) {
-	buf := bytes.Buffer{}
-	io.Copy(&buf, r)
 	cfg := config{}
-
-	err := yaml.Unmarshal(buf.Bytes(), &cfg)
+	err := yaml.NewDecoder(r).Decode(&cfg)
 
 	if len(cfg.XXX) != 0 {
 		return nil, fmt.Errorf("Unknown configuration fields: %v", cfg.XXX)
@@ -99,11 +148,8 @@ func readConfig(r io.Reader) (*config, error) {
 }
 
 func readModuleConfig(name string, r io.Reader) (*moduleConfig, error) {
-	buf := bytes.Buffer{}
-	io.Copy(&buf, r)
 	cfg := moduleConfig{}
-
-	err := yaml.Unmarshal(buf.Bytes(), &cfg)
+	err := yaml.NewDecoder(r).Decode(&cfg)
 	if err != nil {
 		return nil, err
 	}
