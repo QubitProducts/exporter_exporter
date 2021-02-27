@@ -171,6 +171,10 @@ files.  The module name is taken from the name of the file (minus the
 yml/yaml extension), and the configuration for that module goes in at the
 top level.
 
+Note that if you want to use *only* this configuration method and not the file-based 
+configuration (`-config.file` option), you must provide an empty string for the file
+option : `./exporter_exporter -config.file "" -config.dirs "/etc/exporter_exporter/"`
+
 ```
 ==> expexp.yaml <==
 modules: {}
