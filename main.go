@@ -32,11 +32,10 @@ import (
 	"strings"
 	"time"
 
-	"golang.org/x/sync/errgroup"
-
 	"github.com/prometheus/client_golang/prometheus"
 	"github.com/prometheus/client_golang/prometheus/promhttp"
 	log "github.com/sirupsen/logrus"
+	"golang.org/x/sync/errgroup"
 )
 
 var (
@@ -113,10 +112,7 @@ func init() {
 }
 
 func setup() (*config, error) {
-	cfg := &config{
-		Modules: make(map[string]*moduleConfig),
-		XXX:     make(map[string]interface{}),
-	}
+	cfg := newConfig()
 	if *cfgFile != "" {
 		r, err := os.Open(*cfgFile)
 		if err != nil {
@@ -128,7 +124,7 @@ func setup() (*config, error) {
 		if err != nil {
 			return nil, err
 		}
-		for mn, _ := range cfg.Modules {
+		for mn, _ := range cfg.GetModules() {
 			log.Debugf("read module config '%s' from: %s", mn, *cfgFile)
 		}
 	}
@@ -156,7 +152,7 @@ cfgDirs:
 			}
 
 			mn := strings.TrimSuffix(mf.Name(), filepath.Ext(mf.Name()))
-			if _, ok := cfg.Modules[mn]; ok {
+			if m := cfg.getModule(mn); m != nil {
 				return nil, fmt.Errorf("module %s is already defined", mn)
 			}
 			r, err := os.Open(fullpath)
@@ -171,10 +167,10 @@ cfgDirs:
 			}
 
 			log.Debugf("read module config '%s' from: %s", mn, fullpath)
-			cfg.Modules[mn] = mcfg
+			cfg.addModule(mn, mcfg)
 		}
 	}
-	if len(cfg.Modules) == 0 {
+	if len(cfg.GetModules()) == 0 && cfg.Discovery.Enabled == false {
 		log.Errorln("no modules loaded from any config file")
 	}
 
@@ -203,7 +199,17 @@ cfgDirs:
 	if cfg.proxyPath == cfg.telemetryPath {
 		return nil, fmt.Errorf("flags -web.proxy-path and -web.telemetry-path can not be set to the same value")
 	}
-	return cfg, nil
+
+	if cfg.Discovery.Address == "" {
+		cfg.Discovery.Address = "localhost"
+	}
+	if cfg.Discovery.Interval == "" {
+		cfg.Discovery.Interval = "5m"
+	}
+
+	dur, err := time.ParseDuration(cfg.Discovery.Interval)
+	cfg.Discovery.interval = dur
+	return cfg, err
 }
 
 func getClientValidator(r *regexp.Regexp, helloInfo *tls.ClientHelloInfo) func([][]byte, [][]*x509.Certificate) error {
@@ -230,6 +236,7 @@ func getClientValidator(r *regexp.Regexp, helloInfo *tls.ClientHelloInfo) func([
 		return errors.New("no client certificate subject or email address matched")
 	}
 }
+
 func setupTLS() (*tls.Config, error) {
 	var tlsConfig *tls.Config
 	if *tlsAddr == "" {
@@ -255,7 +262,7 @@ func setupTLS() (*tls.Config, error) {
 	}
 	tlsConfig.BuildNameToCertificate()
 
-	if *verify {
+	if !*verify {
 		pool := x509.NewCertPool()
 		cabs, err := ioutil.ReadFile(*caPath)
 		if err != nil {
@@ -279,10 +286,8 @@ func setupTLS() (*tls.Config, error) {
 				return serverConf, nil
 			}
 		}
-	} else {
-		if *certMatch != "" {
-			return nil, errors.New("tls.web.verify must be set to use certificate matching")
-		}
+	} else if *certMatch != "" {
+		return nil, errors.New("tls.web.verify must be set to use certificate matching")
 	}
 
 	return tlsConfig, nil
@@ -375,6 +380,10 @@ func main() {
 
 	eg, ctx := errgroup.WithContext(context.Background())
 
+	if cfg.Discovery.Enabled {
+		go startDiscovery(ctx, cfg)
+	}
+
 	if lsnr != nil {
 		eg.Go(func() error {
 			return runListener(ctx, "http", lsnr, handler)
@@ -430,24 +439,21 @@ func (cfg *config) doProxy(w http.ResponseWriter, r *http.Request) {
 
 	log.Debugf("running module %v\n", mod[0])
 
-	var h http.Handler
-	if m, ok := cfg.Modules[mod[0]]; !ok {
-		proxyErrorCount.WithLabelValues("unknown").Inc()
-		log.Warnf("unknown module requested  %v\n", mod)
-		http.Error(w, fmt.Sprintf("unknown module %v\n", mod), http.StatusNotFound)
+	if m := cfg.getModule(mod[0]); m != nil {
+		m.ServeHTTP(w, r)
 		return
-	} else {
-		h = m
 	}
 
-	h.ServeHTTP(w, r)
+	proxyErrorCount.WithLabelValues("unknown").Inc()
+	log.Warnf("unknown module requested  %v\n", mod)
+	http.Error(w, fmt.Sprintf("unknown module %v\n", mod), http.StatusNotFound)
 }
 
 func (cfg *config) listModules(w http.ResponseWriter, r *http.Request) {
 	switch r.Header.Get("Accept") {
 	case "application/json":
 		log.Debugf("Listing modules in json")
-		moduleJSON, err := json.Marshal(cfg.Modules)
+		moduleJSON, err := json.Marshal(cfg.GetModules())
 		if err != nil {
 			log.Error(err)
 			http.Error(w, "Failed to produce JSON", http.StatusInternalServerError)
@@ -461,7 +467,7 @@ func (cfg *config) listModules(w http.ResponseWriter, r *http.Request) {
 		tmpl := template.Must(template.New("modules").Parse(`
 			<h2>Exporters:</h2>
 				<ul>
-					{{range $name, $cfg := .Modules}}
+					{{range $name, $cfg := .GetModules}}
 						<li><a href="/proxy?module={{$name}}">{{$name}}</a></li>
 					{{end}}
 				</ul>`))
@@ -471,7 +477,6 @@ func (cfg *config) listModules(w http.ResponseWriter, r *http.Request) {
 			http.Error(w, "Can't execute the template", http.StatusInternalServerError)
 		}
 	}
-	return
 }
 
 func (m moduleConfig) ServeHTTP(w http.ResponseWriter, r *http.Request) {
@@ -521,7 +526,7 @@ func (s *StringSliceFlag) Set(value string) error {
 }
 
 // IPNetSliceFlag parses IP network in CIDR notation into net.IPNet. Can be set
-// multiple times
+// multiple times.
 type IPNetSliceFlag []net.IPNet
 
 func (nets IPNetSliceFlag) String() string {

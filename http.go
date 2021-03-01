@@ -34,7 +34,7 @@ import (
 
 const (
 	// Msg to send in response body when verification of proxied server
-	// response is failed
+	// response is failed.
 	VerificationErrorMsg = "Internal Server Error: " +
 		"Response from proxied server failed verification. " +
 		"See server logs for details"
@@ -147,7 +147,7 @@ func (cfg moduleConfig) getReverseProxyErrorHandlerFunc() func(http.ResponseWrit
 	}
 }
 
-// BearerAuthMiddleware
+// BearerAuthMiddleware.
 type BearerAuthMiddleware struct {
 	http.Handler
 	Token string
