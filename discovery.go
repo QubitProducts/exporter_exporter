@@ -83,6 +83,9 @@ func startDiscovery(ctx context.Context, cfg *config) {
 func runDiscovery(ctx context.Context, cfg *config) {
 	ip := cfg.Discovery.Address
 	for name, exp := range cfg.Discovery.Exporters {
+		if m := cfg.getModule(name); m != nil {
+			continue
+		}
 		if alive(ctx, ip, exp.Port, exp.Path) {
 			mc := &moduleConfig{
 				Method: "http",
