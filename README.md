@@ -86,7 +86,7 @@ modules:
     method: http
     http:
        port: 9115
-       path: '/proxy'
+       path: '/probe'
 
   somescript:
     method: exec
