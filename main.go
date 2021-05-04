@@ -170,6 +170,13 @@ cfgDirs:
 			cfg.addModule(mn, mcfg)
 		}
 	}
+	if cfg.Discovery == nil {
+		cfg.Discovery =
+			&discoveryConfig{
+				Exporters: make(map[string]*exporter),
+			}
+	}
+
 	if len(cfg.GetModules()) == 0 && cfg.Discovery.Enabled == false {
 		log.Errorln("no modules loaded from any config file")
 	}
