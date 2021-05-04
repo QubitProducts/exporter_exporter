@@ -28,8 +28,7 @@ import (
 )
 
 type config struct {
-	Global struct {
-	}
+	Global    struct{}
 	Modules   map[string]*moduleConfig
 	Discovery *discoveryConfig
 	XXX       map[string]interface{} `yaml:",inline"`
