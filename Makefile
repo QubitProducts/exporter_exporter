@@ -103,11 +103,21 @@ LDFLAGS = -X main.Version=$(VERSION) \
 					-X main.BuildUser=$(BUILDUSER) \
 					-X main.BuildDate=$(BUILDDATE)
 
+build/$(BINNAME)-$(VERSION).linux-arm64/$(BINNAME): $(SRCS)
+	GOOS=linux GOARCH=arm64 $(GO) build \
+ 	 -ldflags "$(LDFLAGS)" \
+ 	 -o $@ \
+	 .
+
+build/$(BINNAME)-$(VERSION).linux-arm64.zip: build/exporter_exporter-$(VERSION).linux-arm64/$(BINNAME)
+	zip -j $@ $<
+
 build/$(BINNAME)-$(VERSION).windows-amd64/$(BINNAME).exe: $(SRCS)
 	GOOS=windows GOARCH=amd64 $(GO) build \
 	 -ldflags "$(LDFLAGS)" \
 	 -o $@ \
 	 .
+
 build/$(BINNAME)-$(VERSION).windows-amd64.zip: build/exporter_exporter-$(VERSION).windows-amd64/$(BINNAME).exe
 	zip -j $@ $<
 
@@ -131,6 +141,14 @@ package-release: $(PACKAGE_FILE)
 	 	--tag v$(VERSION) \
 		--name $(PACKAGE_FILE) \
 		--file $(PACKAGE_FILE)
+
+release-linux-arm: build/exporter_exporter-$(VERSION).linux-arm64.zip
+	go run github.com/aktau/github-release upload \
+		-u $(GITHUB_ORG) \
+		-r $(GITHUB_REPO) \
+		--tag v$(VERSION) \
+		--name exporter_exporter-$(VERSION).linux-arm64.zip \
+		-f ./build/exporter_exporter-$(VERSION).linux-arm64.zip
 
 release-windows: build/exporter_exporter-$(VERSION).windows-amd64.zip
 	go run github.com/aktau/github-release upload \
@@ -156,4 +174,4 @@ release:
 		-r $(GITHUB_REPO) \
 		--tag v$(VERSION) \
 		--name v$(VERSION)
-	make release-darwin release-linux release-windows package-release
+	make release-darwin release-linux release-linux-arm64 release-windows package-release
