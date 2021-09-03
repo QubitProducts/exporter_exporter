@@ -1,6 +1,6 @@
 GITHUB_ORG  = QubitProducts
 GITHUB_REPO = exporter_exporter
-VERSION      = 0.4.3
+VERSION      = 0.4.4
 
 DOCKER_REGISTRY     = qubitproducts
 DOCKER_NAME         = exporter_exporter
@@ -103,15 +103,6 @@ LDFLAGS = -X main.Version=$(VERSION) \
 					-X main.BuildUser=$(BUILDUSER) \
 					-X main.BuildDate=$(BUILDDATE)
 
-build/$(BINNAME)-$(VERSION).linux-arm64/$(BINNAME): $(SRCS)
-	GOOS=linux GOARCH=arm64 $(GO) build \
- 	 -ldflags "$(LDFLAGS)" \
- 	 -o $@ \
-	 .
-
-build/$(BINNAME)-$(VERSION).linux-arm64.zip: build/exporter_exporter-$(VERSION).linux-arm64/$(BINNAME)
-	zip -j $@ $<
-
 build/$(BINNAME)-$(VERSION).windows-amd64/$(BINNAME).exe: $(SRCS)
 	GOOS=windows GOARCH=amd64 $(GO) build \
 	 -ldflags "$(LDFLAGS)" \
@@ -119,6 +110,15 @@ build/$(BINNAME)-$(VERSION).windows-amd64/$(BINNAME).exe: $(SRCS)
 	 .
 
 build/$(BINNAME)-$(VERSION).windows-amd64.zip: build/exporter_exporter-$(VERSION).windows-amd64/$(BINNAME).exe
+	zip -j $@ $<
+
+build/$(BINNAME)-$(VERSION).linux-arm64/$(BINNAME): $(SRCS)
+	GOOS=linux GOARCH=arm64 $(GO) build \
+ 	 -ldflags "$(LDFLAGS)" \
+ 	 -o $@ \
+	 .
+
+build/$(BINNAME)-$(VERSION).linux-arm64.zip: build/exporter_exporter-$(VERSION).linux-arm64/$(BINNAME)
 	zip -j $@ $<
 
 build/$(BINNAME)-$(VERSION).%-amd64/$(BINNAME): $(SRCS)
@@ -132,6 +132,7 @@ build/$(BINNAME)-$(VERSION).%-amd64.tar.gz: build/$(BINNAME)-$(VERSION).%-amd64/
 		tar cfzv $(BINNAME)-$(VERSION).$*-amd64.tar.gz $(BINNAME)-$(VERSION).$*-amd64
 
 
+
 package: $(PACKAGE_FILE)
 
 package-release: $(PACKAGE_FILE)
@@ -141,14 +142,6 @@ package-release: $(PACKAGE_FILE)
 	 	--tag v$(VERSION) \
 		--name $(PACKAGE_FILE) \
 		--file $(PACKAGE_FILE)
-
-release-linux-arm: build/exporter_exporter-$(VERSION).linux-arm64.zip
-	go run github.com/aktau/github-release upload \
-		-u $(GITHUB_ORG) \
-		-r $(GITHUB_REPO) \
-		--tag v$(VERSION) \
-		--name exporter_exporter-$(VERSION).linux-arm64.zip \
-		-f ./build/exporter_exporter-$(VERSION).linux-arm64.zip
 
 release-windows: build/exporter_exporter-$(VERSION).windows-amd64.zip
 	go run github.com/aktau/github-release upload \
@@ -166,7 +159,15 @@ release-%: build/exporter_exporter-$(VERSION).%-amd64.tar.gz
 		--name exporter_exporter-$(VERSION).$*-amd64.tar.gz \
 		-f ./build/exporter_exporter-$(VERSION).$*-amd64.tar.gz
 
-release: 
+release-linux-arm: build/exporter_exporter-$(VERSION).linux-arm64.zip
+	go run github.com/aktau/github-release upload \
+		-u $(GITHUB_ORG) \
+		-r $(GITHUB_REPO) \
+		--tag v$(VERSION) \
+		--name exporter_exporter-$(VERSION).linux-arm64.zip \
+		-f ./build/exporter_exporter-$(VERSION).linux-arm64.zip
+
+release:
 	git tag v$(VERSION)
 	git push origin v$(VERSION)
 	go run github.com/aktau/github-release release \
