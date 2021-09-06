@@ -1,6 +1,6 @@
 GITHUB_ORG  = QubitProducts
 GITHUB_REPO = exporter_exporter
-VERSION      = 0.4.4
+VERSION      = 0.4.5
 
 DOCKER_REGISTRY     = qubitproducts
 DOCKER_NAME         = exporter_exporter
@@ -75,6 +75,7 @@ AUTHORS:
 $(PACKAGE_FILE): prepare-package
 	cd dist && \
 	  fpm \
+		-f \
 	  -t $(PACKAGE_TARGET) \
 	  -m $(PACKAGE_MAINTAINER) \
 	  -n $(PACKAGE_NAME) \
@@ -89,7 +90,7 @@ $(PACKAGE_FILE): prepare-package
 	  .
 
 .PHONY: build-docker release-docker
-build-docker: 
+build-docker:
 	docker build -t $(DOCKER_IMAGE) .
 
 release-docker: build-docker
@@ -104,7 +105,7 @@ LDFLAGS = -X main.Version=$(VERSION) \
 					-X main.BuildDate=$(BUILDDATE)
 
 build/$(BINNAME)-$(VERSION).windows-amd64/$(BINNAME).exe: $(SRCS)
-	GOOS=windows GOARCH=amd64 $(GO) build \
+	@GOOS=windows GOARCH=amd64 $(GO) build \
 	 -ldflags "$(LDFLAGS)" \
 	 -o $@ \
 	 .
@@ -112,14 +113,11 @@ build/$(BINNAME)-$(VERSION).windows-amd64/$(BINNAME).exe: $(SRCS)
 build/$(BINNAME)-$(VERSION).windows-amd64.zip: build/exporter_exporter-$(VERSION).windows-amd64/$(BINNAME).exe
 	zip -j $@ $<
 
-build/$(BINNAME)-$(VERSION).linux-arm64/$(BINNAME): $(SRCS)
-	GOOS=linux GOARCH=arm64 $(GO) build \
+build/$(BINNAME)-$(VERSION).%-arm64/$(BINNAME): $(SRCS)
+	GOOS=$* GOARCH=arm64 $(GO) build \
  	 -ldflags "$(LDFLAGS)" \
  	 -o $@ \
 	 .
-
-build/$(BINNAME)-$(VERSION).linux-arm64.zip: build/exporter_exporter-$(VERSION).linux-arm64/$(BINNAME)
-	zip -j $@ $<
 
 build/$(BINNAME)-$(VERSION).%-amd64/$(BINNAME): $(SRCS)
 	GOOS=$* GOARCH=amd64 $(GO) build \
@@ -127,11 +125,13 @@ build/$(BINNAME)-$(VERSION).%-amd64/$(BINNAME): $(SRCS)
 	 -o $@ \
 	 .
 
+build/$(BINNAME)-$(VERSION).%-arm64.tar.gz: build/$(BINNAME)-$(VERSION).%-arm64/$(BINNAME)
+	cd build && \
+		tar cfzv $(BINNAME)-$(VERSION).$*-arm64.tar.gz $(BINNAME)-$(VERSION).$*-arm64
+
 build/$(BINNAME)-$(VERSION).%-amd64.tar.gz: build/$(BINNAME)-$(VERSION).%-amd64/$(BINNAME)
 	cd build && \
 		tar cfzv $(BINNAME)-$(VERSION).$*-amd64.tar.gz $(BINNAME)-$(VERSION).$*-amd64
-
-
 
 package: $(PACKAGE_FILE)
 
@@ -151,21 +151,20 @@ release-windows: build/exporter_exporter-$(VERSION).windows-amd64.zip
 		--name exporter_exporter-$(VERSION).windows-amd64.zip \
 		-f ./build/exporter_exporter-$(VERSION).windows-amd64.zip
 
-release-%: build/exporter_exporter-$(VERSION).%-amd64.tar.gz
-	go run github.com/aktau/github-release upload \
-		-u $(GITHUB_ORG) \
-		-r $(GITHUB_REPO) \
-		--tag v$(VERSION) \
-		--name exporter_exporter-$(VERSION).$*-amd64.tar.gz \
-		-f ./build/exporter_exporter-$(VERSION).$*-amd64.tar.gz
+.PRECIOUS: \
+	build/exporter_exporter-$(VERSION).darwin-amd64.tar.gz \
+	build/exporter_exporter-$(VERSION).linux-arm64.tar.gz \
+	build/exporter_exporter-$(VERSION).linux-amd64.tar.gz \
+	build/exporter_exporter-$(VERSION).windows-amd64.zip
 
-release-linux-arm: build/exporter_exporter-$(VERSION).linux-arm64.zip
+
+release-%: build/exporter_exporter-$(VERSION).%.tar.gz
 	go run github.com/aktau/github-release upload \
 		-u $(GITHUB_ORG) \
 		-r $(GITHUB_REPO) \
 		--tag v$(VERSION) \
-		--name exporter_exporter-$(VERSION).linux-arm64.zip \
-		-f ./build/exporter_exporter-$(VERSION).linux-arm64.zip
+		--name exporter_exporter-$(VERSION).$*.tar.gz \
+		-f ./build/exporter_exporter-$(VERSION).$*.tar.gz
 
 release:
 	git tag v$(VERSION)
@@ -175,4 +174,4 @@ release:
 		-r $(GITHUB_REPO) \
 		--tag v$(VERSION) \
 		--name v$(VERSION)
-	make release-darwin release-linux release-linux-arm64 release-windows package-release
+	make release-darwin-amd64 release-linux-amd64 release-linux-arm64 release-windows package-release release-docker
