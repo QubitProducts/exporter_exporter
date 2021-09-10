@@ -73,6 +73,9 @@ func (cfg moduleConfig) getReverseProxyDirectorFunc() (func(*http.Request), erro
 
 		r.URL.Scheme = cfg.HTTP.Scheme
 		r.URL.Host = net.JoinHostPort(cfg.HTTP.Address, strconv.Itoa(cfg.HTTP.Port))
+		if _, ok := cfg.HTTP.Headers["host"]; ok {
+			r.Host = cfg.HTTP.Headers["host"]
+		}
 		r.URL.Path = base.Path
 		if cfg.HTTP.BasicAuthUsername != "" && cfg.HTTP.BasicAuthPassword != "" {
 			r.SetBasicAuth(cfg.HTTP.BasicAuthUsername, cfg.HTTP.BasicAuthPassword)
