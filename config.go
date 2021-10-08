@@ -39,9 +39,10 @@ type config struct {
 }
 
 type moduleConfig struct {
-	Method  string                 `yaml:"method"`
-	Timeout time.Duration          `yaml:"timeout"`
-	XXX     map[string]interface{} `yaml:",inline"`
+	Method            string                 `yaml:"method"`
+	Timeout           time.Duration          `yaml:"timeout"`
+	NoValidateMetrics bool                   `yaml:"no_validate_metrics"`
+	XXX               map[string]interface{} `yaml:",inline"`
 
 	Exec execConfig `yaml:"exec"`
 	HTTP httpConfig `yaml:"http"`
