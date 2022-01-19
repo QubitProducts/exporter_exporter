@@ -49,7 +49,7 @@ TODO:
 ### Windows Service
 
 The binary can be installed as a Windows service by supplying the `-winsvc install` arg.
-All other arguments passed along with `-winsvc install` will be added to the service startup 
+All other arguments passed along with `-winsvc install` will be added to the service startup
 and can only be changed by uninstalling/installing it again (or modifying the Windows registry directly).
 
 ## Configuration
@@ -61,32 +61,32 @@ modules:
   node:
     method: http
     http:
-       port: 9100
+      port: 9100
 
   mtail:
     method: http
     http:
-       port: 3903
-       headers:
-          foo: bar
+      port: 3903
+      headers:
+        foo: bar
 
   cadvisor:
     method: http
     http:
-       verify: false
-       port: 4194
+      verify: false
+      port: 4194
 
   netdata:
     method: http
     http:
-       port: 19999
-       path: '/api/v1/allmetrics?format=prometheus'
+      port: 19999
+      path: '/api/v1/allmetrics?format=prometheus'
 
   blackbox:
     method: http
     http:
-       port: 9115
-       path: '/probe'
+      port: 9115
+      path: /probe
 
   somescript:
     method: exec
@@ -94,8 +94,8 @@ modules:
     exec:
       command: /tmp/myscript.sh
       args:
-        - "myarg1"
-        - "myarg2"
+        - myarg1
+        - myarg2
       env:
         THING: "1"
         THING2: "2"
@@ -105,35 +105,39 @@ In your prometheus configuration
 
 ```
 scrape_configs:
-  - job_name: 'expexp_metrics'
+  - job_name: expexp_metrics
     scrape_interval: 1s
     static_configs:
-      - targets: ['host:9999']
-  - job_name: 'cadvisor'
+      - targets:
+          - host:9999
+  - job_name: cadvisor
     scrape_interval: 5s
     metrics_path: /proxy
     params:
       module:
         - cadvisor
     static_configs:
-      - targets: ['host:9999']
-  - job_name: 'mtail'
+      - targets:
+          - host:9999
+  - job_name: mtail
     scrape_interval: 5s
     metrics_path: /proxy
     params:
       module:
         - mtail
     static_configs:
-      - targets: ['host:9999']
-  - job_name: 'somescript'
+      - targets:
+          - host:9999
+  - job_name: somescript
     scrape_interval: 5s
     metrics_path: /proxy
     params:
       module:
         - somescript
     static_configs:
-      - targets: ['host:9999']
-  - job_name: 'blackbox'
+      - targets:
+          - host:9999
+  - job_name: blackbox
     metrics_path: /proxy
     params:
       module:
@@ -141,12 +145,14 @@ scrape_configs:
         - icmp_example
     static_configs:
       - targets:
-        - 8.8.8.8
-        - 8.8.4.4
+          - 8.8.8.8
+          - 8.8.4.4
     relabel_configs:
-      - source_labels: [__address__]
+      - source_labels:
+          - __address__
         target_label: __param_target
-      - source_labels: [__param_target]
+      - source_labels:
+          - __param_target
         target_label: instance
       - target_label: __address__
         replacement: host:9999
@@ -156,7 +162,7 @@ scrape_configs:
 
 The blackbox exporter also uses the "module" query string parameter. To query it via
 exporter_exporter we rely on the stripping of the initial "module" parameter. For example
- 
+
 ```
 curl http://localhost:9999/proxy\?module\=blackbox\&module\=icmp_example\&target\=8.8.8.8
 ```
@@ -171,7 +177,7 @@ files.  The module name is taken from the name of the file (minus the
 yml/yaml extension), and the configuration for that module goes in at the
 top level.
 
-Note that if you want to use *only* this configuration method and not the file-based 
+Note that if you want to use *only* this configuration method and not the file-based
 configuration (`-config.file` option), you must provide an empty string for the file
 option : `./exporter_exporter -config.file "" -config.dirs "/etc/exporter_exporter/"`
 
@@ -182,12 +188,12 @@ modules: {}
 ==> expexp.d/node.yaml <==
 method: http
 http:
-   port: 9100
+  port: 9100
 
 ==> expexp.d/mtail.yaml <==
 method: http
 http:
-   port: 3903
+  port: 3903
 ```
 
 ## TLS configuration
@@ -248,7 +254,7 @@ When this is working, configure your prometheus server to use https. Example:
     scrape_timeout: 50s
     file_sd_configs:
       - files:
-        - /etc/prometheus/targets.d/node_targets.yml
+          - /etc/prometheus/targets.d/node_targets.yml
     scheme: https
     tls_config:
       # Verifying remote identity
@@ -259,11 +265,14 @@ When this is working, configure your prometheus server to use https. Example:
       key_file: /etc/prometheus/ssl/prometheus_key.pem
     metrics_path: /proxy
     params:
-      module: [ node ]
+      module:
+        - node
     relabel_configs:
-      - source_labels: [__address__]
+      - source_labels:
+          - __address__
         target_label: instance
-      - source_labels: [__address__]
+      - source_labels:
+          - __address__
         regex: '([^:]+)'
         target_label: __address__
         replacement: '${1}:9998'
@@ -274,6 +283,6 @@ Example `/etc/prometheus/targets.d/node_targets.yml`:
 ```
 - labels: []
   targets:
-  - 192.0.2.1
-  - 192.0.2.2
+    - 192.0.2.1
+    - 192.0.2.2
 ```
