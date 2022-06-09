@@ -87,10 +87,15 @@ func runDiscovery(ctx context.Context, cfg *config) {
 			continue
 		}
 		if alive(ctx, ip, exp.Port, exp.Path) {
+			verify := true
+			if exp.Verify != nil && *exp.Verify == false {
+				verify = false
+			}
 			mc := &moduleConfig{
 				Method: "http",
 				HTTP: httpConfig{
 					Port:    exp.Port,
+					Verify:  &verify,
 					Address: cfg.Discovery.Address,
 				},
 			}

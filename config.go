@@ -96,8 +96,9 @@ type discoveryConfig struct {
 }
 
 type exporter struct {
-	Port int    `yaml:"port"`
-	Path string `yaml:"path"`
+	Port   int    `yaml:"port"`
+	Path   string `yaml:"path"`
+	Verify *bool  `yaml:"verify"`
 }
 
 type httpConfig struct {
