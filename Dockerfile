@@ -1,14 +1,11 @@
-FROM golang:1.16-alpine AS build
+#syntax=docker/dockerfile:1.4.2
 
-RUN mkdir /src
-WORKDIR /src
+FROM golang:1.19-alpine AS build
+WORKDIR /go/src/
+COPY . .
+RUN go mod download ;\
+    go build
 
-COPY go.mod go.sum /src/
-RUN go mod download
-
-COPY *.go /src/
-RUN go build .
-
-FROM alpine:latest
-COPY --from=build /src/exporter_exporter /usr/bin/
-ENTRYPOINT ["/usr/bin/exporter_exporter"]
+FROM alpine:3.16.2 AS runtime
+COPY --from=build /go/src/exporter_exporter /usr/local/bin/
+ENTRYPOINT ["exporter_exporter"]
