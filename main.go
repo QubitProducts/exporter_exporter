@@ -22,7 +22,6 @@ import (
 	"flag"
 	"fmt"
 	"html/template"
-	"io/ioutil"
 	"net"
 	"net/http"
 	"os"
@@ -135,7 +134,7 @@ func setup() (*config, error) {
 
 cfgDirs:
 	for _, cfgDir := range cfgDirs {
-		mfs, err := ioutil.ReadDir(cfgDir)
+		mfs, err := os.ReadDir(cfgDir)
 		if err != nil {
 			if *skipDirs && os.IsNotExist(err) {
 				log.Warnf("skipping non existent config.dirs entry '%s'", cfgDir)
@@ -186,7 +185,7 @@ cfgDirs:
 		if *bearerToken != "" {
 			return nil, errors.New(("web.bearer.token and web.bearer.token-file are mutually exclusive options"))
 		}
-		bs, err := ioutil.ReadFile(*bearerTokenFile)
+		bs, err := os.ReadFile(*bearerTokenFile)
 		if err != nil {
 			return nil, fmt.Errorf("failed reading bearer file %s, %w", *bearerTokenFile, err)
 		}
@@ -257,7 +256,7 @@ func setupTLS() (*tls.Config, error) {
 
 	if *verify {
 		pool := x509.NewCertPool()
-		cabs, err := ioutil.ReadFile(*caPath)
+		cabs, err := os.ReadFile(*caPath)
 		if err != nil {
 			return nil, fmt.Errorf("Could not open ca file, %w", err)
 		}

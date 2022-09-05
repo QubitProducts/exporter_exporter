@@ -20,7 +20,6 @@ import (
 	"errors"
 	"fmt"
 	"io"
-	"io/ioutil"
 	"net"
 	"net/http"
 	"net/url"
@@ -100,7 +99,7 @@ func (cfg moduleConfig) getReverseProxyModifyResponseFunc() func(*http.Response)
 			return &VerifyError{"Failed to read body from proxied server", err}
 		}
 
-		resp.Body = ioutil.NopCloser(bytes.NewReader(body.Bytes()))
+		resp.Body = io.NopCloser(bytes.NewReader(body.Bytes()))
 
 		var bodyReader io.ReadCloser
 		if resp.Header.Get("Content-Encoding") == "gzip" {
@@ -109,7 +108,7 @@ func (cfg moduleConfig) getReverseProxyModifyResponseFunc() func(*http.Response)
 				return &VerifyError{"Failed to decode gzipped response", err}
 			}
 		} else {
-			bodyReader = ioutil.NopCloser(bytes.NewReader(body.Bytes()))
+			bodyReader = io.NopCloser(bytes.NewReader(body.Bytes()))
 		}
 		defer bodyReader.Close()
 

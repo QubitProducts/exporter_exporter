@@ -19,9 +19,9 @@ import (
 	"crypto/x509"
 	"fmt"
 	"io"
-	"io/ioutil"
 	"net/http"
 	"net/http/httputil"
+	"os"
 	"time"
 
 	yaml "gopkg.in/yaml.v3"
@@ -181,7 +181,7 @@ func (c httpConfig) getTLSConfig() (*tls.Config, error) {
 		MinVersion:         tls.VersionTLS12,
 	}
 	if c.TLSCACertFile != nil {
-		caCert, err := ioutil.ReadFile(*c.TLSCACertFile)
+		caCert, err := os.ReadFile(*c.TLSCACertFile)
 		if err != nil {
 			return nil, fmt.Errorf("could not read ca from %v, %w", *c.TLSCACertFile, err)
 		}
