@@ -24,7 +24,7 @@ import (
 	"net/http/httputil"
 	"time"
 
-	yaml "gopkg.in/yaml.v2"
+	yaml "gopkg.in/yaml.v3"
 )
 
 type config struct {
