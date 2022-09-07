@@ -6,6 +6,6 @@ COPY . .
 RUN go mod download ;\
     go build
 
-FROM alpine:3.16.2 AS runtime
+FROM alpine:latest AS runtime
 COPY --from=build /go/src/exporter_exporter /usr/local/bin/
 ENTRYPOINT ["exporter_exporter"]
