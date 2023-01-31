@@ -1,11 +1,14 @@
-#syntax=docker/dockerfile:1.4.2
+#syntax=docker/dockerfile:1.5.1
 
-FROM golang:1.19-alpine AS build
-WORKDIR /go/src/
+FROM cgr.dev/chainguard/go:latest AS build
+WORKDIR /go/src/exporter_exporter
 COPY . .
-RUN go mod download ;\
-    go build
+ENV CGO_ENABLED=0
+ENV GOOS=linux
 
-FROM alpine:latest AS runtime
-COPY --from=build /go/src/exporter_exporter /usr/local/bin/
-ENTRYPOINT ["exporter_exporter"]
+RUN go mod download ;\
+    go build -trimpath
+
+FROM cgr.dev/chainguard/static:latest AS runtime
+COPY --from=build /go/src/exporter_exporter/exporter_exporter /exporter_exporter
+ENTRYPOINT [ "/exporter_exporter" ]
