@@ -1,6 +1,6 @@
 module github.com/QubitProducts/exporter_exporter
 
-go 1.19
+go 1.20
 
 require (
 	github.com/aktau/github-release v0.10.0
