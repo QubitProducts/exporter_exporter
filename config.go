@@ -45,6 +45,7 @@ type moduleConfig struct {
 
 	Exec execConfig `yaml:"exec"`
 	HTTP httpConfig `yaml:"http"`
+	File fileConfig `yaml:"file"`
 
 	name string
 }
@@ -75,6 +76,13 @@ type execConfig struct {
 	Env     map[string]string      `yaml:"env"`
 	XXX     map[string]interface{} `yaml:",inline"`
 
+	mcfg *moduleConfig
+}
+
+type fileConfig struct {
+	Path      string                 `yaml:"path"`
+	UseMtime  bool                   `yaml:"use_mtime"`
+	IsGlob    bool                   `yaml:"glob"`
 	mcfg *moduleConfig
 }
 
@@ -167,6 +175,10 @@ func checkModuleConfig(name string, cfg *moduleConfig) error {
 	case "exec":
 		if len(cfg.Exec.XXX) != 0 {
 			return fmt.Errorf("Unknown exec module configuration fields: %v", cfg.Exec.XXX)
+		}
+	case "file":
+		if cfg.File.Path == "" {
+			return fmt.Errorf("Path argument for file module is mandatory")
 		}
 	default:
 		return fmt.Errorf("Unknown module method: %v", cfg.Method)
