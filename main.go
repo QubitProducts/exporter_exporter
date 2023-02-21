@@ -502,6 +502,9 @@ func (m moduleConfig) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	case "http":
 		m.HTTP.mcfg = &m
 		m.HTTP.ServeHTTP(w, nr)
+	case "file":
+		m.File.mcfg = &m
+		m.File.ServeHTTP(w, nr)
 	default:
 		log.Errorf("unknown module method  %v\n", m.Method)
 		proxyErrorCount.WithLabelValues(m.name).Inc()

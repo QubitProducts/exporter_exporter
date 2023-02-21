@@ -99,6 +99,12 @@ modules:
       env:
         THING: "1"
         THING2: "2"
+
+  somefile:
+    method: file
+    file:
+      path: /tmp/myfile.prometheus.txt
+      use_mtime: true
 ```
 
 In your prometheus configuration
