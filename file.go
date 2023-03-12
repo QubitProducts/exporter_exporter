@@ -150,7 +150,9 @@ func (c fileConfig) GatherWithContext(ctx context.Context, r *http.Request) prom
 		for _, mf := range mfs {
 			if c.UseMtime && mtimeBuf != nil {
 				for _, m := range mf.GetMetric() {
-					m.TimestampMs = mtimeBuf
+					if (m.TimestampMs == nil) {
+						m.TimestampMs = mtimeBuf
+					}
 				}
 			}
 			result = append(result, mf)
