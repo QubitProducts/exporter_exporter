@@ -30,8 +30,9 @@ import (
 type config struct {
 	Global struct {
 	}
-	Modules map[string]*moduleConfig
-	XXX     map[string]interface{} `yaml:",inline"`
+	Modules       map[string]*moduleConfig
+	DefaultModule string                 `yaml:"defaultModule"`
+	XXX           map[string]interface{} `yaml:",inline"`
 
 	bearerToken   string
 	proxyPath     string

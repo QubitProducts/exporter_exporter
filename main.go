@@ -421,10 +421,14 @@ func (middleware AccessLogMiddleware) ServeHTTP(w http.ResponseWriter, r *http.R
 
 func (cfg *config) doProxy(w http.ResponseWriter, r *http.Request) {
 	mod, ok := r.URL.Query()["module"]
-	if !ok {
+	if !ok && cfg.DefaultModule == "" {
 		log.Errorf("no module given")
 		http.Error(w, fmt.Sprintf("require parameter module is missing%v\n", mod), http.StatusBadRequest)
 		return
+	}
+
+	if len(mod) == 0 {
+		mod = append(mod, cfg.DefaultModule)
 	}
 
 	log.Debugf("running module %v\n", mod[0])
