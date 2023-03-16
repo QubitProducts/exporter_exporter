@@ -10,7 +10,6 @@
 // WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 // See the License for the specific language governing permissions and
 // limitations under the License.
-
 package main
 
 import (
@@ -87,12 +86,12 @@ func readConfig(r io.Reader) (*config, error) {
 	err := yaml.Unmarshal(buf.Bytes(), &cfg)
 
 	if len(cfg.XXX) != 0 {
-		return nil, fmt.Errorf("Unknown configuration fields: %v", cfg.XXX)
+		return nil, fmt.Errorf("unknown configuration fields: %v", cfg.XXX)
 	}
 
 	for s := range cfg.Modules {
-		if err := checkModuleConfig(s, cfg.Modules[s]); err != nil {
-			return nil, fmt.Errorf("bad config for module %s, %w", s, err)
+		if merr := checkModuleConfig(s, cfg.Modules[s]); merr != nil {
+			return nil, fmt.Errorf("bad config for module %s, %w", s, merr)
 		}
 	}
 
@@ -126,7 +125,7 @@ func checkModuleConfig(name string, cfg *moduleConfig) error {
 	switch cfg.Method {
 	case "http":
 		if len(cfg.HTTP.XXX) != 0 {
-			return fmt.Errorf("Unknown http module configuration fields: %v", cfg.HTTP.XXX)
+			return fmt.Errorf("unknown http module configuration fields: %v", cfg.HTTP.XXX)
 		}
 
 		if cfg.HTTP.Port == 0 {
@@ -167,10 +166,10 @@ func checkModuleConfig(name string, cfg *moduleConfig) error {
 		}
 	case "exec":
 		if len(cfg.Exec.XXX) != 0 {
-			return fmt.Errorf("Unknown exec module configuration fields: %v", cfg.Exec.XXX)
+			return fmt.Errorf("unknown exec module configuration fields: %v", cfg.Exec.XXX)
 		}
 	default:
-		return fmt.Errorf("Unknown module method: %v", cfg.Method)
+		return fmt.Errorf("unknown module method: %v", cfg.Method)
 	}
 
 	return nil

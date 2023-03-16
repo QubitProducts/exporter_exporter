@@ -63,7 +63,7 @@ var (
 	pPath = flag.String("web.proxy-path", "/proxy", "The address to listen on for HTTP requests.")
 
 	logLevel = LogLevelFlag(log.WarnLevel)
-	logJson  = flag.Bool("log.json", false, "Serialize log messages in JSON")
+	logJSON  = flag.Bool("log.json", false, "Serialize log messages in JSON")
 
 	proxyDuration = prometheus.NewSummaryVec(
 		prometheus.SummaryOpts{
@@ -127,7 +127,7 @@ func setup() (*config, error) {
 		if err != nil {
 			return nil, err
 		}
-		for mn, _ := range cfg.Modules {
+		for mn := range cfg.Modules {
 			log.Debugf("read module config '%s' from: %s", mn, *cfgFile)
 		}
 	}
@@ -206,7 +206,7 @@ cfgDirs:
 }
 
 func getClientValidator(r *regexp.Regexp, helloInfo *tls.ClientHelloInfo) func([][]byte, [][]*x509.Certificate) error {
-	return func(rawCerts [][]byte, verifiedChains [][]*x509.Certificate) error {
+	return func(_ [][]byte, verifiedChains [][]*x509.Certificate) error {
 		for _, c := range verifiedChains {
 			leaf := c[0]
 
@@ -237,7 +237,7 @@ func setupTLS() (*tls.Config, error) {
 
 	cert, err := tls.LoadX509KeyPair(*certPath, *keyPath)
 	if err != nil {
-		return nil, fmt.Errorf("Could not parse key/cert, %w", err)
+		return nil, fmt.Errorf("could not parse key/cert, %w", err)
 	}
 
 	tlsConfig = &tls.Config{
@@ -258,11 +258,11 @@ func setupTLS() (*tls.Config, error) {
 		pool := x509.NewCertPool()
 		cabs, err := os.ReadFile(*caPath)
 		if err != nil {
-			return nil, fmt.Errorf("Could not open ca file, %w", err)
+			return nil, fmt.Errorf("could not open ca file, %w", err)
 		}
 		ok := pool.AppendCertsFromPEM(cabs)
 		if !ok {
-			return nil, errors.New("Failed loading ca certs")
+			return nil, errors.New("failed loading ca certs")
 		}
 		tlsConfig.ClientAuth = tls.RequireAndVerifyClientCert
 		tlsConfig.ClientCAs = pool
@@ -367,7 +367,7 @@ func main() {
 	}
 
 	log.SetLevel(log.Level(logLevel))
-	if *logJson {
+	if *logJSON {
 		log.SetFormatter(&log.JSONFormatter{})
 	}
 	handler = &AccessLogMiddleware{handler}
@@ -399,6 +399,7 @@ func (w *responseWriterWithStatus) WriteHeader(status int) {
 	w.ResponseWriter.WriteHeader(status)
 }
 
+// AccessLogMiddleware logs all request at Info level
 type AccessLogMiddleware struct {
 	http.Handler
 }
@@ -413,7 +414,7 @@ func (middleware AccessLogMiddleware) ServeHTTP(w http.ResponseWriter, r *http.R
 		log.Infof(
 			"%s - %s \"%s\" %d %s (took %s)",
 			remoteHost, r.Method, r.URL.RequestURI(), statusWriter.status,
-			http.StatusText(statusWriter.status), time.Now().Sub(start),
+			http.StatusText(statusWriter.status), time.Since(start),
 		)
 	}()
 	middleware.Handler.ServeHTTP(statusWriter, r)
@@ -434,14 +435,15 @@ func (cfg *config) doProxy(w http.ResponseWriter, r *http.Request) {
 	log.Debugf("running module %v\n", mod[0])
 
 	var h http.Handler
-	if m, ok := cfg.Modules[mod[0]]; !ok {
+	m, ok := cfg.Modules[mod[0]]
+	if !ok {
 		proxyErrorCount.WithLabelValues("unknown").Inc()
 		log.Warnf("unknown module requested  %v\n", mod)
 		http.Error(w, fmt.Sprintf("unknown module %v\n", mod), http.StatusNotFound)
 		return
-	} else {
-		h = m
 	}
+
+	h = m
 
 	h.ServeHTTP(w, r)
 }
@@ -474,7 +476,6 @@ func (cfg *config) listModules(w http.ResponseWriter, r *http.Request) {
 			http.Error(w, "Can't execute the template", http.StatusInternalServerError)
 		}
 	}
-	return
 }
 
 func (m moduleConfig) ServeHTTP(w http.ResponseWriter, r *http.Request) {
@@ -509,7 +510,7 @@ func (m moduleConfig) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	}
 }
 
-// StringSliceFlags collects multiple uses of a named flag into a slice.
+// StringSliceFlag collects multiple uses of a named flag into a slice.
 type StringSliceFlag []string
 
 func (s *StringSliceFlag) String() string {
@@ -518,6 +519,7 @@ func (s *StringSliceFlag) String() string {
 	return strings.Join(*s, ", ")
 }
 
+// Set fullfills the flag.Value interface
 func (s *StringSliceFlag) Set(value string) error {
 	*s = append(*s, value)
 	return nil
@@ -535,26 +537,33 @@ func (nets IPNetSliceFlag) String() string {
 	return strings.Join(netsStr, ", ")
 }
 
+// Set fullfills the flag.Value interface
 func (nets *IPNetSliceFlag) Set(value string) error {
-	if _, net, err := net.ParseCIDR(value); err != nil {
+	_, net, err := net.ParseCIDR(value)
+	if err != nil {
 		return err
-	} else {
-		*nets = append(*nets, *net)
 	}
+
+	*nets = append(*nets, *net)
+
 	return nil
 }
 
+// LogLevelFlag implements a flag.Value that sets the logging level
 type LogLevelFlag log.Level
 
 func (level LogLevelFlag) String() string {
 	return log.Level(level).String()
 }
 
+// Set fullfills the flag.Value interface
 func (level *LogLevelFlag) Set(value string) error {
-	if lvl, err := log.ParseLevel(value); err != nil {
+	lvl, err := log.ParseLevel(value)
+	if err != nil {
 		return err
-	} else {
-		*level = LogLevelFlag(lvl)
 	}
+
+	*level = LogLevelFlag(lvl)
+
 	return nil
 }

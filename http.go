@@ -32,13 +32,14 @@ import (
 )
 
 const (
-	// Msg to send in response body when verification of proxied server
+	// VerificationErrorMsg to send in response body when verification of proxied server
 	// response is failed
 	VerificationErrorMsg = "Internal Server Error: " +
 		"Response from proxied server failed verification. " +
 		"See server logs for details"
 )
 
+// VerifyError is an error type that supports reporting verification errors
 type VerifyError struct {
 	msg   string
 	cause error
@@ -130,7 +131,7 @@ func (cfg moduleConfig) getReverseProxyModifyResponseFunc() func(*http.Response)
 }
 
 func (cfg moduleConfig) getReverseProxyErrorHandlerFunc() func(http.ResponseWriter, *http.Request, error) {
-	return func(w http.ResponseWriter, r *http.Request, err error) {
+	return func(w http.ResponseWriter, _ *http.Request, err error) {
 		var verifyError *VerifyError
 		if errors.As(err, &verifyError) {
 			log.Errorf("Verification for module '%s' failed: %v", cfg.name, err)
@@ -149,7 +150,8 @@ func (cfg moduleConfig) getReverseProxyErrorHandlerFunc() func(http.ResponseWrit
 	}
 }
 
-// BearerAuthMiddleware
+// BearerAuthMiddleware checks an Authorization: Berarer header for a known
+// token
 type BearerAuthMiddleware struct {
 	http.Handler
 	Token string
@@ -176,6 +178,8 @@ func (b BearerAuthMiddleware) ServeHTTP(w http.ResponseWriter, r *http.Request) 
 	b.Handler.ServeHTTP(w, r)
 }
 
+// IPAddressAuthMiddleware matches all incoming requests to a known
+// set of remote net.IPNet networks
 type IPAddressAuthMiddleware struct {
 	http.Handler
 	ACL []net.IPNet

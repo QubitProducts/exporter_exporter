@@ -19,13 +19,13 @@ import (
 func BenchmarkReverseProxyHandler(b *testing.B) {
 	body := genRandomMetricsResponse(10000, 10)
 
-	test_exporter := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+	testExporter := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
 		reader := bytes.NewReader(body.Bytes())
 		io.Copy(w, reader)
 	}))
-	defer test_exporter.Close()
+	defer testExporter.Close()
 
-	URL, _ := url.Parse(test_exporter.URL)
+	URL, _ := url.Parse(testExporter.URL)
 	verify := true
 	port, _ := strconv.ParseInt(URL.Port(), 0, 0)
 	modCfg := &moduleConfig{
@@ -70,21 +70,21 @@ func BenchmarkReverseProxyHandler(b *testing.B) {
 // metric names in format 'metric{random number}'. m_num controls number of metrics
 // inside each metric family. Metrics inside metric families differ in values of
 // label 'label'.
-func genRandomMetricsResponse(mf_num int, m_num int) *bytes.Buffer {
+func genRandomMetricsResponse(mfNum int, mNum int) *bytes.Buffer {
 	rand.Seed(time.Now().UnixNano())
 	helpMsg := "help msg"
 	labelName := "label"
-	metricFamilies := make([]*dto.MetricFamily, mf_num)
+	metricFamilies := make([]*dto.MetricFamily, mfNum)
 	metricType := dto.MetricType_GAUGE
-	for i, _ := range metricFamilies {
-		metrics := make([]*dto.Metric, m_num)
-		for i, _ := range metrics {
+	for i := range metricFamilies {
+		metrics := make([]*dto.Metric, mNum)
+		for i := range metrics {
 			labelValue := fmt.Sprint(rand.Int63())
 			value := rand.Float64()
 			ts := time.Now().UnixNano()
 			metrics[i] = &dto.Metric{
 				Label: []*dto.LabelPair{
-					&dto.LabelPair{
+					{
 						Name:  &labelName,
 						Value: &labelValue,
 					},
