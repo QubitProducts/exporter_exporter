@@ -1,3 +1,4 @@
+defaultModule: node
 modules:
   node:
     method: http

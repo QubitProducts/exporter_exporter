@@ -21,7 +21,8 @@ The exporter has three endpoints.
   - Returns JSON if the header "Accept: application/json" is passed
 
 - /proxy: which takes the following parameters:
-  - *module*: the name of the module from the configuration to execute.
+  - *module*: the name of the module from the configuration to execute. (a default
+    module can be selected using the defaultModule config option)
   - *args*: (only for exec modules): additional arguments to the backend command.
   - all other query string parameters are passed on to any http backend module.
     (excluding the first *module* parameter value).
@@ -57,6 +58,7 @@ and can only be changed by uninstalling/installing it again (or modifying the Wi
 In expexp.yaml list each exporter listening on localhost with its known port.
 
 ```
+defaultModule: node # called if "module" param is not supplied
 modules:
   node:
     method: http
