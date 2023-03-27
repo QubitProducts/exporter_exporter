@@ -80,9 +80,7 @@ type execConfig struct {
 }
 
 type fileConfig struct {
-	Path      string                 `yaml:"path"`
-	UseMtime  bool                   `yaml:"use_mtime"`
-	IsGlob    bool                   `yaml:"glob"`
+	Path string `yaml:"path"`
 	mcfg *moduleConfig
 }
 
@@ -178,7 +176,7 @@ func checkModuleConfig(name string, cfg *moduleConfig) error {
 		}
 	case "file":
 		if cfg.File.Path == "" {
-			return fmt.Errorf("Path argument for file module is mandatory")
+			return fmt.Errorf("path argument for file module is mandatory")
 		}
 	default:
 		return fmt.Errorf("unknown module method: %v", cfg.Method)

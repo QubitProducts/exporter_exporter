@@ -16,6 +16,8 @@ package main
 import (
 	"bytes"
 	"context"
+	"errors"
+	"fmt"
 	"io"
 	"net/http"
 	"os"
@@ -29,16 +31,9 @@ import (
 )
 
 var (
-	fileStartsCount = prometheus.NewCounterVec(
-		prometheus.CounterOpts{
-			Name: "expexp_command_starts_total",
-			Help: "Counts of command starts",
-		},
-		[]string{"module"},
-	)
 	fileFailsCount = prometheus.NewCounterVec(
 		prometheus.CounterOpts{
-			Name: "expexp_command_fails_total",
+			Name: "expexp_file_fails_total",
 			Help: "Count of commands with non-zero exits",
 		},
 		[]string{"module"},
@@ -52,7 +47,10 @@ func readFileWithDeadline(path string, t time.Time) ([]byte, time.Time, error) {
 		return nil, mtime, err
 	}
 	defer f.Close()
-	f.SetDeadline(t)
+
+	if !t.IsZero() {
+		f.SetDeadline(t)
+	}
 
 	if info, err := f.Stat(); err == nil {
 		if info.Mode().IsRegular() {
@@ -64,9 +62,9 @@ func readFileWithDeadline(path string, t time.Time) ([]byte, time.Time, error) {
 }
 
 var (
-	mtimeName = "expexp_file_mtime_timestamp"
-	mtimeHelp = "Time of modification of parsed file"
-	mtimeType = dto.MetricType_GAUGE
+	mtimeName        = "expexp_file_mtime_timestamp"
+	mtimeHelp        = "Time of modification of parsed file"
+	mtimeType        = dto.MetricType_GAUGE
 	mtimeLabelModule = "module"
 	mtimeLabelPath   = "path"
 )
@@ -78,37 +76,32 @@ func (c fileConfig) GatherWithContext(ctx context.Context, r *http.Request) prom
 		datc := make(chan []byte, 1)
 		timec := make(chan time.Time, 1)
 		go func() {
-			deadline, ok := ctx.Deadline()
-			if ! ok { deadline = time.Now().Add(time.Minute * 5) }
+			defer close(errc)
+			defer close(datc)
+			defer close(timec)
+
+			deadline, _ := ctx.Deadline()
 			dat, mtime, err := readFileWithDeadline(c.Path, deadline)
 			errc <- err
 			if err == nil {
-			    datc <- dat
-			    timec <- mtime
+				datc <- dat
+				timec <- mtime
 			}
-			close(errc)
-			close(datc)
-			close(timec)
 		}()
 
-		err := <- errc
+		err := <-errc
 		if err != nil {
-			log.Warnf("File module %v failed to read file %v, %+v", c.mcfg.name, c.Path, err)
+			err = fmt.Errorf("file module %v failed to read file %v, %w", c.mcfg.name, c.Path, err)
+			log.Warnf(err.Error())
 			fileFailsCount.WithLabelValues(c.mcfg.name).Inc()
-			if err == context.DeadlineExceeded || err == os.ErrDeadlineExceeded {
+			if errors.Is(err, context.DeadlineExceeded) || errors.Is(err, os.ErrDeadlineExceeded) {
 				proxyTimeoutCount.WithLabelValues(c.mcfg.name).Inc()
 			}
 			return nil, err
 		}
-		dat := <- datc
-		mtime := <- timec
+		dat := <-datc
+		mtime := <-timec
 		var prsr expfmt.TextParser
-
-		var mtimeBuf *int64 = nil
-		if ! mtime.IsZero() {
-			mtimeBuf = new(int64)
-			*mtimeBuf = mtime.UnixMilli()
-		}
 
 		var result []*dto.MetricFamily
 		mfs, err := prsr.TextToMetricFamilies(bytes.NewReader(dat))
@@ -117,28 +110,22 @@ func (c fileConfig) GatherWithContext(ctx context.Context, r *http.Request) prom
 			return nil, err
 		}
 		for _, mf := range mfs {
-			if c.UseMtime && mtimeBuf != nil {
-				for _, m := range mf.GetMetric() {
-					if (m.TimestampMs == nil) {
-						m.TimestampMs = mtimeBuf
-					}
-				}
-			}
 			result = append(result, mf)
 		}
+
 		if !mtime.IsZero() {
-			v := float64(mtime.Unix())
-			g := dto.Gauge { Value: &v, }
+			v := float64(mtime.UnixNano()) / float64(time.Second)
+			g := dto.Gauge{Value: &v}
 			l := make([]*dto.LabelPair, 2)
 			l[0] = &dto.LabelPair{
-				Name:&mtimeLabelModule,
-				Value:&c.mcfg.name,
+				Name:  &mtimeLabelModule,
+				Value: &c.mcfg.name,
 			}
 			l[1] = &dto.LabelPair{
-				Name:&mtimeLabelPath,
-				Value:&c.Path,
+				Name:  &mtimeLabelPath,
+				Value: &c.Path,
 			}
-			m := dto.Metric {
+			m := dto.Metric{
 				Label: l,
 				Gauge: &g,
 			}

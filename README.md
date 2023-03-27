@@ -104,7 +104,6 @@ modules:
     method: file
     file:
       path: /tmp/myfile.prometheus.txt
-      use_mtime: true
 ```
 
 In your prometheus configuration
