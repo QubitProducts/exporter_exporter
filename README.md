@@ -212,8 +212,8 @@ prometheus server and one key/cert shared between all the remote nodes.
 Firstly, create the keys and certs:
 
 ```
-openssl req -x509 -newkey rsa:1024 -keyout prom_node_key.pem -out prom_node_cert.pem -days 29220 -nodes -subj /commonName=prom_node/ -addext "subjectAltName=DNS:prom_node"
-openssl req -x509 -newkey rsa:1024 -keyout prometheus_key.pem -out prometheus_cert.pem -days 29220 -nodes -subj /commonName=prometheus/ -addext "subjectAltName=DNS:prometheus"
+openssl req -x509 -newkey rsa:2048 -keyout prom_node_key.pem -out prom_node_cert.pem -days 29220 -nodes -subj /commonName=prom_node/ -addext "subjectAltName=DNS:prom_node"
+openssl req -x509 -newkey rsa:2048 -keyout prometheus_key.pem -out prometheus_cert.pem -days 29220 -nodes -subj /commonName=prometheus/ -addext "subjectAltName=DNS:prometheus"
 ```
 
 Create an `/etc/prometheus/ssl/` directory on the prometheus server and all
