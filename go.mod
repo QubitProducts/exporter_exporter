@@ -4,6 +4,7 @@ go 1.20
 
 require (
 	github.com/aktau/github-release v0.10.0
+	github.com/fsnotify/fsnotify v1.6.0
 	github.com/prometheus/client_golang v1.14.0
 	github.com/prometheus/client_model v0.3.0
 	github.com/prometheus/common v0.39.0

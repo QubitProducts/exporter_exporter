@@ -31,7 +31,7 @@ func BenchmarkReverseProxyHandler(b *testing.B) {
 	modCfg := &moduleConfig{
 		Method:  "http",
 		Timeout: 5 * time.Second,
-		HTTP: httpConfig{
+		HTTP: &httpConfig{
 			Verify:  &verify,
 			Scheme:  URL.Scheme,
 			Address: URL.Hostname(),

@@ -23,6 +23,7 @@ import (
 	"net"
 	"net/http"
 	"net/url"
+	"regexp"
 	"strconv"
 	"strings"
 
@@ -128,6 +129,205 @@ func (cfg moduleConfig) getReverseProxyModifyResponseFunc() func(*http.Response)
 
 		return nil
 	}
+}
+
+// aha start
+func (cfg moduleConfig) getLabelExtendReverseProxyModifyResponseFunc() func(*http.Response) error {
+	return func(resp *http.Response) error {
+		if resp.StatusCode != 200 {
+			return nil
+		}
+
+		// Since the body is extended the header Content-Length must be removed
+		resp.Header.Del("Content-Length")
+
+		var (
+			err     error
+			body    bytes.Buffer
+			oldBody = resp.Body
+		)
+		defer oldBody.Close()
+
+		if _, err = body.ReadFrom(oldBody); err != nil {
+			return &VerifyError{"Failed to read body from proxied server", err}
+		}
+
+		resp.Body = io.NopCloser(bytes.NewReader(body.Bytes()))
+
+		var bodyReader io.ReadCloser
+		if resp.Header.Get("Content-Encoding") == "gzip" {
+			bodyReader, err = gzip.NewReader(bytes.NewReader(body.Bytes()))
+			if err != nil {
+				return &VerifyError{"Failed to decode gzipped response", err}
+			}
+		} else {
+			bodyReader = io.NopCloser(bytes.NewReader(body.Bytes()))
+		}
+		defer bodyReader.Close()
+
+		dec := expfmt.NewDecoder(bodyReader, expfmt.ResponseFormat(resp.Header))
+
+		out := &bytes.Buffer{}
+
+		for {
+			mf := dto.MetricFamily{}
+
+			err := dec.Decode(&mf)
+			if err == io.EOF {
+				break
+			}
+
+			if err != nil {
+				proxyMalformedCount.WithLabelValues(cfg.name).Inc()
+				return &VerifyError{"Failed to decode metrics from proxied server", err}
+			}
+
+			// Validate that the target name exists in the configuration file
+			// url include target=device1.foo.com
+			labelKeyNames := getTargetMatch(resp.Request, cfg)
+			if labelKeyNames == nil {
+				continue
+			}
+
+			err = cfg.manageExtendedLabels(mf, labelKeyNames, out)
+			if err != nil {
+				return &VerifyError{"Failed to extend labels on metrics from proxied server", err}
+
+			}
+
+		}
+
+		// Prometheus always request with "Accept-Encoding: gzip"
+		if resp.Request.Header.Get("Accept-Encoding") == "gzip" {
+			var b bytes.Buffer
+			gz := gzip.NewWriter(&b)
+			defer gz.Close()
+			_, err = gz.Write(out.Bytes())
+			gz.Flush()
+			resp.Body = io.NopCloser(&b)
+		} else {
+			resp.Body = io.NopCloser(out)
+		}
+		return nil
+	}
+}
+
+func (cfg moduleConfig) manageExtendedLabels(mf dto.MetricFamily, labelKeyNames *ExtendedLabelTarget, out *bytes.Buffer) error {
+
+	var labelIndexMap map[string]*MetricLabelMeta
+
+	for index, metric := range mf.Metric {
+		if index == 0 && metric.Label == nil {
+			//continue
+			break
+		}
+
+		// Check the first metric of all the same type
+		if index == 0 {
+			// return the label map indicate if the label_key_names exist in the metrics
+			labelIndexMap = resolveLabels(metric, labelKeyNames)
+		}
+
+		// For every label_key_name
+		for _, extendedLabel := range labelKeyNames.Labels {
+
+			// Evaluate the first row of the mf.Metric to check if label exist and index in metric.Label
+			if labelIndexMap[extendedLabel.MatchLabelKey].LabelExist {
+				var matchLabelPair *dto.LabelPair
+				// if the label exists in the metric
+				matchLabelPair = metric.Label[labelIndexMap[extendedLabel.MatchLabelKey].LabelIndex]
+				if matchLabelPair != nil {
+					for _, matchLabel := range extendedLabel.MatchLabels {
+						defaultAddLabels := matchLabel.DefaultLabelPairs
+
+						// check if metric name matcher is true
+						if !matchMetricsName(mf.GetName(), matchLabel.MetricMatch) {
+							continue
+						}
+
+						for matchKey, addLabels := range matchLabel.MatchLabelValues {
+
+							// check if the metric label value match match_label_key_values
+							if !(matchLabelPair.GetValue() == matchKey || "*" == matchKey) {
+								continue
+							}
+
+							if addLabels != nil {
+								addExtendedLabels(addLabels.LabelPair, metric)
+							}
+
+							if defaultAddLabels != nil {
+								addExtendedLabels(defaultAddLabels, metric)
+							}
+						}
+					}
+				}
+			}
+		}
+	}
+
+	_, err := expfmt.MetricFamilyToText(out, &mf)
+	if err != nil {
+		if err != nil {
+			proxyMalformedCount.WithLabelValues(cfg.name).Inc()
+			return &VerifyError{"Failed to inject labels from proxied server", err}
+		}
+	}
+	return nil
+}
+
+func addExtendedLabels(defaultAddLabels map[string]string, metric *dto.Metric) {
+	for addLabelKey, addLabelValue := range defaultAddLabels {
+		k := addLabelKey
+		v := addLabelValue
+		var label = dto.LabelPair{
+			Name:  &k,
+			Value: &v,
+		}
+		metric.Label = append(metric.Label, &label)
+	}
+}
+
+func matchMetricsName(name string, matchMetricsName *string) bool {
+	if matchMetricsName == nil {
+		return true
+	}
+	match, err := regexp.MatchString(*matchMetricsName, name)
+	if err != nil {
+		// log
+		return false
+	}
+	return match
+}
+
+func getTargetMatch(request *http.Request, cfg moduleConfig) *ExtendedLabelTarget {
+	target := request.URL.Query().Get(*cfg.HTTP.LabelExtendTargetIdentity)
+	kalle := cfg.HTTP.LabelExtendConfig.ExtendedLabels[target]
+	return &kalle
+}
+
+func resolveLabels(metric *dto.Metric, ingestor *ExtendedLabelTarget) map[string]*MetricLabelMeta {
+	metricLabelMeta := make(map[string]*MetricLabelMeta)
+	for _, key := range ingestor.getMatchKeys() {
+		metricLabel := MetricLabelMeta{
+			LabelIndex: 0,
+			LabelExist: false,
+		}
+		metricLabelMeta[key] = &metricLabel
+		for index, label := range metric.Label {
+			if key == label.GetName() {
+				metricLabel.LabelExist = true
+				metricLabel.LabelIndex = index
+				break
+			}
+		}
+	}
+	return metricLabelMeta
+}
+
+type MetricLabelMeta struct {
+	LabelIndex int
+	LabelExist bool
 }
 
 func (cfg moduleConfig) getReverseProxyErrorHandlerFunc() func(http.ResponseWriter, *http.Request, error) {

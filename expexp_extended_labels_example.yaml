@@ -1,0 +1,10 @@
+defaultModule: snmp
+modules:
+  snmp:
+    method: http
+    http:
+      port: 9116
+      path: /snmp
+      label_extend: true
+      label_extend_path: ./extended_labels/interfaces.yaml
+      label_extend_target_url_identity: target
