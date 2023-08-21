@@ -33,7 +33,10 @@ func watch(cfg *moduleConfig) {
 				log.Debug(fmt.Sprintf("Event: %v", event.Name))
 				if event.Op&fsnotify.Write == fsnotify.Write {
 					log.Info(fmt.Sprintf("Modified file: %v", event.Name))
-					labelConfig, _ := cfg.HTTP.getExtendedLabelConfig()
+					labelConfig, err := cfg.HTTP.getExtendedLabelConfig()
+					if err != nil {
+						log.Error("Error watcher: ", err)
+					}
 					cfg.HTTP.LabelExtendConfig = labelConfig
 				}
 			case err := <-watcher.Errors:
@@ -42,7 +45,7 @@ func watch(cfg *moduleConfig) {
 		}
 	}()
 
-	err = watcher.Add(*cfg.HTTP.LabelExtendPath)
+	err = watcher.Add(*cfg.HTTP.ExtendLabelsPath)
 	if err != nil {
 		log.Fatal(err)
 	}

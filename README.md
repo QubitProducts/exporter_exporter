@@ -1,3 +1,18 @@
+Exporter Exporter Extended Labels 
+----------------------------------
+# Background to this fork
+This is a fork of [exporter_exporter](https://github.com/QubitProducts/exporter_exporter) that 
+include additional support to add additional labels to the metrics fetched through the proxy. 
+This label enrichment was proposed as 
+[PR](https://github.com/QubitProducts/exporter_exporter/pull/95)
+to the exporter_exporter project, but was considered out of scope. 
+This fork is compatible with exporter_exporter 
+[0.5.0](https://github.com/QubitProducts/exporter_exporter/releases/tag/v0.5.0).
+
+The documentation for the extended labels is in the end of this README in the section called 
+"Extended Labels".
+
+
 # Exporter Exporter - prometheus exporter proxy
 
 ```   "you mean apache/nginx" - bbrazil ```
@@ -284,3 +299,92 @@ Example `/etc/prometheus/targets.d/node_targets.yml`:
   - 192.0.2.1
   - 192.0.2.2
 ```
+
+# Extended labels
+When metrics are proxy through the exporter_exporter it is possible to appended labels based
+on target and original labels and label value. A possible use case would be for the 
+snmp-exporter for interfaces where it is a need to add labels to specific interfaces 
+on specific targets. This can be information that is based on data from a network management 
+system where for example some interface have specific attributes, like interface is a trunk
+and have neighbours. For trunk interface additional monitoring and alerting is required.
+Solving this with relabeling is not feasible since it would require Prometheus job configuration
+per target.
+With extended labels enabled the metrics payload returned from the exporter, e.g. snmp-exporter,
+will be match against target, metrics name and label name and label value. If matched, the 
+additional configured labels are added to the metric.
+
+## Configuration 
+To enable extended labels the following 3 attributes must be added to the `expexp.yaml`.
+
+```yaml
+defaultModule: snmp
+modules:
+  snmp:
+    method: http
+    http:
+      port: 9116
+      path: /snmp
+      # Enable extended labels
+      label_extend: true
+      # The url parameter identify the target 
+      label_extend_target_url_identity: target
+      # The path to the file for the specific extended label configuration 
+      label_extend_path: /tmp/interfaces.yaml
+```
+`label_extend` set to true just enable the feature for the module. 
+The second , `label_extend_target_url_identity`, define what target the extended labels 
+should be match against. For the snmp-exporter the url parameter target define the host that 
+snmp should be executed against. The third, `label_extend_path`, define the path to the 
+extended labels configuration, typical created by automation, for example extract lldp based 
+neighbor information from Cisco Prime that result in labels as trunk and neighbor.
+
+The configuration, defined by label_extend_path has the following format, using an example 
+that is applicable, but not limited, to the snmp-exporter use case:
+```yaml
+targets:
+  foo.bar.org:
+    labels:
+    -
+      label_key_name: "ifIndex"
+      extended_labels:
+        -
+          metric_match: ifOperStatus
+          match_label_key_values:
+            "*":
+          default_label_pairs:
+            type: l2switch
+        -
+          metric_match: if(Admin|Oper)Status
+          match_label_key_values:
+            "370":
+              label_pairs:
+                 trunk: true
+                 endpoint: 172.25.1.19:13
+            "371":
+              label_pairs:
+                trunk: true
+                endpoint: 172.25.1.13:45
+    -
+      label_key_name: "iftype"
+      extended_labels:
+        - match_label_key_values:
+            "mpls":
+              label_pairs:
+                external: true
+  abc.xyz.org:
+    labels:
+     .......
+```
+The `targets` attribute include a map of targets, in the above example a host name. 
+The entry is matched against the value of the url query parameter defined by 
+`label_extend_target_url_identity`. 
+So if a metrics has a label named `ifIndex`, defined by `label_key_name`, 
+the logic will evaluate against what is configured in the `extended_labels`. 
+First it will validate if this is only applicable to specific named metrics, 
+for example `ifOperStatus`. The metric_match value is a regular expression 
+and default to .* if not defined. 
+The `match_label_key_values` define what label value to match against. 
+In the first entry the match is done against all values, `*` of `ifIndex` and a label 
+called type with value `l2switch` is added. In the second entry, 
+both the metrics named `ifOperStatus` and `ifAdminStatus` is matched, but labels, 
+trunk and endpoint, are only added for metrics where ifIndex has the value of `370` or `371`.

@@ -301,8 +301,8 @@ func matchMetricsName(name string, matchMetricsName *string) bool {
 }
 
 func getTargetMatch(request *http.Request, cfg moduleConfig) *ExtendedLabelTarget {
-	target := request.URL.Query().Get(*cfg.HTTP.LabelExtendTargetIdentity)
-	kalle := cfg.HTTP.LabelExtendConfig.ExtendedLabels[target]
+	target := request.URL.Query().Get(*cfg.HTTP.ExtendLabelsTargetURLIdentity)
+	kalle := cfg.HTTP.LabelExtendConfig.Targets[target]
 	return &kalle
 }
 

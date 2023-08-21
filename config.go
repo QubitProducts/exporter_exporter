@@ -51,22 +51,22 @@ type moduleConfig struct {
 }
 
 type httpConfig struct {
-	Verify                    *bool                  `yaml:"verify"`                           // no default
-	LabelExtend               *bool                  `yaml:"label_extend"`                     // false
-	LabelExtendPath           *string                `yaml:"label_extend_path"`                // no default
-	LabelExtendTargetIdentity *string                `yaml:"label_extend_target_url_identity"` // no default
-	TLSInsecureSkipVerify     bool                   `yaml:"tls_insecure_skip_verify"`         // false
-	TLSCertFile               *string                `yaml:"tls_cert_file"`                    // no default
-	TLSKeyFile                *string                `yaml:"tls_key_file"`                     // no default
-	TLSCACertFile             *string                `yaml:"tls_ca_cert_file"`                 // no default
-	Port                      int                    `yaml:"port"`                             // no default
-	Path                      string                 `yaml:"path"`                             // /metrics
-	Scheme                    string                 `yaml:"scheme"`                           // http
-	Address                   string                 `yaml:"address"`                          // 127.0.0.1
-	Headers                   map[string]string      `yaml:"headers"`                          // no default
-	BasicAuthUsername         string                 `yaml:"basic_auth_username"`              // no default
-	BasicAuthPassword         string                 `yaml:"basic_auth_password"`              // no default
-	XXX                       map[string]interface{} `yaml:",inline"`
+	Verify                        *bool                  `yaml:"verify"`                              // no default
+	ExtendLabels                  *bool                  `yaml:"extended_labels"`                     // false
+	ExtendLabelsPath              *string                `yaml:"extended_labels_path"`                // no default
+	ExtendLabelsTargetURLIdentity *string                `yaml:"extended_labels_target_url_identity"` // no default
+	TLSInsecureSkipVerify         bool                   `yaml:"tls_insecure_skip_verify"`            // false
+	TLSCertFile                   *string                `yaml:"tls_cert_file"`                       // no default
+	TLSKeyFile                    *string                `yaml:"tls_key_file"`                        // no default
+	TLSCACertFile                 *string                `yaml:"tls_ca_cert_file"`                    // no default
+	Port                          int                    `yaml:"port"`                                // no default
+	Path                          string                 `yaml:"path"`                                // /metrics
+	Scheme                        string                 `yaml:"scheme"`                              // http
+	Address                       string                 `yaml:"address"`                             // 127.0.0.1
+	Headers                       map[string]string      `yaml:"headers"`                             // no default
+	BasicAuthUsername             string                 `yaml:"basic_auth_username"`                 // no default
+	BasicAuthPassword             string                 `yaml:"basic_auth_password"`                 // no default
+	XXX                           map[string]interface{} `yaml:",inline"`
 
 	LabelExtendConfig      *ExtendedLabelsConfig
 	tlsConfig              *tls.Config
@@ -75,11 +75,10 @@ type httpConfig struct {
 }
 
 type ExtendedLabelsConfig struct {
-	ExtendedLabels map[string]ExtendedLabelTarget `yaml:"extended_labels"`
+	Targets map[string]ExtendedLabelTarget `yaml:"targets"`
 }
 
 type ExtendedLabelTarget struct {
-	//Target []string        `yaml:"target"`
 	Labels []ExtendedLabel `yaml:"labels"`
 }
 
@@ -177,19 +176,21 @@ func checkModuleConfig(name string, cfg *moduleConfig) error {
 			v := true
 			cfg.HTTP.Verify = &v
 		}
-		if cfg.HTTP.LabelExtend == nil {
+		if cfg.HTTP.ExtendLabels == nil {
 			v := false
-			cfg.HTTP.LabelExtend = &v
+			cfg.HTTP.ExtendLabels = &v
 		}
 
-		if *cfg.HTTP.LabelExtend && cfg.HTTP.LabelExtendPath != nil {
+		if *cfg.HTTP.ExtendLabels && cfg.HTTP.ExtendLabelsPath != nil {
 			var err error
 			cfg.HTTP.LabelExtendConfig, err = cfg.HTTP.getExtendedLabelConfig()
+			if err != nil {
+				//fmt.Printf("err %s\n", err)
+				return err
+			}
 			// Setup watcher for the config file
 			watch(cfg)
-			if err != nil {
-				fmt.Printf("err %s", err)
-			}
+
 		}
 
 		if cfg.HTTP.Scheme == "" {
@@ -218,10 +219,10 @@ func checkModuleConfig(name string, cfg *moduleConfig) error {
 			Director:     dirFunc,
 			ErrorHandler: cfg.getReverseProxyErrorHandlerFunc(),
 		}
-		if *cfg.HTTP.Verify && !*cfg.HTTP.LabelExtend {
+		if *cfg.HTTP.Verify && !*cfg.HTTP.ExtendLabels {
 			cfg.HTTP.ReverseProxy.ModifyResponse = cfg.getReverseProxyModifyResponseFunc()
 		}
-		if *cfg.HTTP.LabelExtend {
+		if *cfg.HTTP.ExtendLabels {
 			cfg.HTTP.ReverseProxy.ModifyResponse = cfg.getLabelExtendReverseProxyModifyResponseFunc()
 		}
 	case "exec":
@@ -240,7 +241,7 @@ func checkModuleConfig(name string, cfg *moduleConfig) error {
 }
 
 func (c httpConfig) getExtendedLabelConfig() (*ExtendedLabelsConfig, error) {
-	labelDataConfig, err := os.ReadFile(*c.LabelExtendPath)
+	labelDataConfig, err := os.ReadFile(*c.ExtendLabelsPath)
 	if err != nil {
 		return nil, err
 	}
