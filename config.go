@@ -57,6 +57,7 @@ type httpConfig struct {
 	TLSKeyFile            *string                `yaml:"tls_key_file"`             // no default
 	TLSCACertFile         *string                `yaml:"tls_ca_cert_file"`         // no default
 	TLSRootCaFile         *string                `yaml:"tls_root_ca_file"`         // no default
+	TLSServerName         *string                `yaml:"server_name"`              // no default
 	Port                  int                    `yaml:"port"`                     // no default
 	Path                  string                 `yaml:"path"`                     // /metrics
 	Scheme                string                 `yaml:"scheme"`                   // http
@@ -214,6 +215,9 @@ func (c httpConfig) getTLSConfig() (*tls.Config, error) {
 		systemCAPool.AppendCertsFromPEM(caRootCert)
 
 		config.RootCAs = systemCAPool
+	}
+	if c.TLSServerName != nil {
+		config.ServerName = *c.TLSServerName
 	}
 	if c.TLSCertFile != nil && c.TLSKeyFile != nil {
 		cert, err := tls.LoadX509KeyPair(*c.TLSCertFile, *c.TLSKeyFile)
