@@ -1,0 +1,107 @@
+---
+snapshot:
+  name_template: '{{ incminor .Version }}-prerelease'
+
+builds:
+  - main: .
+    binary: exporter_exporter
+    id: "exporter_exporter"
+    env:
+      - CGO_ENABLED=0
+    goos:
+      - linux
+      - darwin
+      - windows
+    goarch:
+      - amd64
+      - arm64
+    goarm:
+      - "6"
+      - "7"
+    mod_timestamp: '{{ .CommitTimestamp }}'
+    flags:
+      - -trimpath
+    ldflags:
+      - -s -w -X main.Version={{.Version}} -X main.Revision={{.FullCommit}} -X main.BuildDate={{.Date}} -X main.Branch={{.Branch}} -X main.BuildUser={{.Env.USER}}
+
+archives:
+  - id: exporter_exporter
+    builds:
+      - exporter_exporter
+    name_template: 'exporter_exporter_{{ .Version }}_{{ title .Os }}_{{ if eq .Arch "amd64" }}x86_64{{ else }}{{ .Arch }}{{ end }}{{ if .Arm }}v{{ .Arm }}{{ end }}'
+
+checksum:
+  name_template: 'checksums.txt'
+release:
+  header: |-
+    exporter_exporter {{ .Version }}
+    ---------------------
+
+kos:
+  - repository: "docker.io/qubitproducts/exporter_exporter"
+    tags:
+    - '{{.Version}}'
+    - latest
+    bare: true
+    platforms:
+    - linux/amd64
+    - linux/arm64
+
+nfpms:
+  - package_name: expexp
+    bindir: /usr/local/bin
+    file_name_template: "{{ .ConventionalFileName }}"
+    vendor: QubitProducts
+    homepage: https://github.com/QubitProducts/exporter_exporter
+    maintainer: tristan@qubit.com
+
+    # Your app's description.
+    description: |-
+      Exporter that proxies other prometheus exporters
+
+    license: Apache 2.0
+
+    formats:
+      - deb
+
+    contents:
+      - src: exporter_exporter.conf
+        dst: /etc/init/exporter_exporter
+        packager: deb
+        file_info:
+          mode: 0644
+      - src: exporter_exporter.defaults
+        dst: /etc/default/exporter_exporter
+        packager: deb
+        type: "config"
+        file_info:
+          mode: 0644
+      - src: expexp.yaml
+        dst: /etc/exporter_exporter.yaml
+        packager: deb
+        type: "config"
+        file_info:
+          mode: 0644
+
+changelog:
+  sort: asc
+  groups:
+    - title: Features
+      regexp: 'feat(?:\(.+?\))?!?:'
+      order: 5
+    - title: Enhancements
+      regexp: 'enhancement(?:\(.+?\))?!?:'
+      order: 10
+    - title: Bug fixes
+      regexp: 'fix(?:\(.+?\))?!?:'
+      order: 15
+    - title: Documentation
+      regexp: 'docs(?:\(.+?\))?!?:'
+      order: 20
+    - title: Chores
+      regexp: 'chore(?:\(.+?\))?!?:'
+      order: 25
+    - title: Others
+      order: 100
+
+
