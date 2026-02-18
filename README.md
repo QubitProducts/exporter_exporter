@@ -1,4 +1,7 @@
-# Exporter Exporter - prometheus exporter proxy
+
+# This repository is no longer active. An actively maintained fork is being maintained at https://github.com/tcolgate/exporter_exporter
+
+## Exporter Exporter - prometheus exporter proxy
 
 ```   "you mean apache/nginx" - bbrazil ```
 
